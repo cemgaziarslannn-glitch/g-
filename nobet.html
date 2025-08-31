@@ -85,7 +85,7 @@ button:hover { opacity:0.9; }
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, get, remove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -233,8 +233,8 @@ startBtn.addEventListener('click', ()=>{
   ).catch(err=>{ alert("Kamera açılamadı: "+err); });
 });
 
-// Teslim et
-deliverBtn.addEventListener('click', ()=>{
+// Teslim et ve tamamlananlara taşı
+deliverBtn.addEventListener('click', async ()=>{
   if(!currentShiftKey){ alert("Aktif nöbet kaydı bulunamadı!"); return; }
 
   const deliverTo = deliverSelect.value;
@@ -255,15 +255,29 @@ deliverBtn.addEventListener('click', ()=>{
         return;
       }
 
-      update(ref(db,'nobetRecords/'+currentShiftKey), {
+      // Mevcut kaydı oku
+      const shiftSnap = await get(ref(db,'nobetRecords/'+currentShiftKey));
+      if(!shiftSnap.exists()){
+        alert("Aktif nöbet kaydı bulunamadı!");
+        return;
+      }
+      const shiftData = shiftSnap.val();
+
+      // Tamamlananlar alanına ekle
+      const completedRecord = {
+        ...shiftData,
         deliveredBy: currentUser.username,
         deliveredTo: deliverTo,
         endPoint: qrData.name || qrCodeMessage,
         endTime: new Date().toISOString(),
-        status:'ended'
-      });
+        status: 'ended'
+      };
+      await push(ref(db,'tamamnbt'), completedRecord);
 
-      successText.innerText="Nöbet başarıyla teslim edildi.";
+      // Aktif kaydı sil
+      await remove(ref(db,'nobetRecords/'+currentShiftKey));
+
+      successText.innerText="Nöbet başarıyla teslim edildi ve tamamlandı.";
       successModal.style.display='flex';
   },
   err=>{}
