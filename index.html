@@ -15,8 +15,8 @@
   .role-buttons button.active { background: linear-gradient(90deg,#27ae60,#2ecc71); box-shadow:0 6px 20px rgba(39,174,96,0.5);}
   .input-group { display:none; flex-direction:column; text-align:left; animation:fadeIn 0.4s; }
   .input-group.active { display:flex; }
-  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px; text-transform: uppercase;}
-  input::placeholder { color: rgba(236,240,241,0.6); text-transform: uppercase; }
+  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px;}
+  input::placeholder { color: rgba(236,240,241,0.6); }
   .remember {display:flex; align-items:center; gap:8px; font-size: 14px; margin-top:8px;}
   .remember input[type="checkbox"] { margin:0; cursor:pointer; }
   .remember label { margin:0; cursor:pointer; color: #ffffff; }
@@ -40,8 +40,8 @@
   </div>
 
   <div id="securityGroup" class="input-group">
-    <input type="text" id="secUsername" placeholder="KULLANICI ADI">
-    <input type="password" id="secPassword" placeholder="ŞİFRE">
+    <input type="text" id="secUsername" placeholder="Kullanıcı Adı">
+    <input type="password" id="secPassword" placeholder="Şifre">
     <div class="remember">
       <input type="checkbox" id="secRemember">
       <label for="secRemember">Kullanıcıyı hatırla</label>
@@ -50,8 +50,8 @@
   </div>
 
   <div id="residentGroup" class="input-group active">
-    <input type="text" id="resUsername" placeholder="KULLANICI ADI">
-    <input type="password" id="resPassword" placeholder="ŞİFRE">
+    <input type="text" id="resUsername" placeholder="Kullanıcı Adı">
+    <input type="password" id="resPassword" placeholder="Şifre">
     <div class="remember">
       <input type="checkbox" id="resRemember">
       <label for="resRemember">Kullanıcıyı hatırla</label>
@@ -65,8 +65,8 @@
 <div class="modal" id="adminModal">
   <div class="modal-content">
     <h3>Yönetici Girişi</h3>
-    <input type="text" id="adminUsername" placeholder="KULLANICI ADI">
-    <input type="password" id="adminPassword" placeholder="ŞİFRE">
+    <input type="text" id="adminUsername" placeholder="Kullanıcı Adı">
+    <input type="password" id="adminPassword" placeholder="Şifre">
     <button id="adminLoginBtn" class="loginBtn">Giriş Yap</button>
     <button id="closeAdminBtn" style="background:#c0392b; margin-top:10px;">Kapat</button>
   </div>
@@ -74,7 +74,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, get, child, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -125,7 +125,7 @@ residentBtn.addEventListener("click", ()=>{
   msg.textContent="";
 });
 
-// Admin modal 10 tık
+// 10 tık ile admin modal aç
 let cgaClickCount=0;
 cgaTitle.addEventListener("click", ()=>{
   cgaClickCount++;
@@ -136,7 +136,7 @@ cgaTitle.addEventListener("click", ()=>{
 });
 closeAdminBtn.addEventListener("click", ()=>adminModal.style.display="none");
 
-// LocalStorage hatırlama
+// Sayfa yüklenince hatırlanan kullanıcıları doldur
 window.addEventListener("load", ()=>{
   residentBtn.click();
   const secStored = JSON.parse(localStorage.getItem("securityUser"));
@@ -153,16 +153,13 @@ window.addEventListener("load", ()=>{
   }
 });
 
-// Cihaz ID alma/üretme
-function getDeviceId(){
-  let id = localStorage.getItem("deviceId");
-  if(!id){
-    id = 'dev-' + Math.random().toString(36).substr(2,12);
-    localStorage.setItem("deviceId", id);
-  }
-  return id;
-}
-const deviceId = getDeviceId();
+// **Güvenlik ve Site Sakini inputlarını otomatik büyük harfe çevir**
+[secUsername, secPassword].forEach(el=>{
+  el.addEventListener("input", ()=>{ el.value = el.value.toUpperCase(); });
+});
+[resUsername, resPassword].forEach(el=>{
+  el.addEventListener("input", ()=>{ el.value = el.value.toUpperCase(); });
+});
 
 // Login fonksiyonu
 async function loginUser(username, password, role){
@@ -176,13 +173,12 @@ async function loginUser(username, password, role){
   }
 
   try {
-    // Admin login
+    // Admin login modal
     const adminSnap = await get(child(ref(db), 'admin'));
     if(adminSnap.exists()){
       const adminUser = adminSnap.val();
-      if(username.toLowerCase() === adminUser.username.toLowerCase() &&
-         password.toLowerCase() === adminUser.password.toLowerCase()){
-        sessionStorage.setItem("currentUser", JSON.stringify({username:"admin", type:"admin"}));
+      if(username === adminUser.username && password === adminUser.password){
+        sessionStorage.setItem("currentUser", JSON.stringify({username, type:"admin"}));
         window.location.href = "mod.html";
         return;
       }
@@ -195,37 +191,22 @@ async function loginUser(username, password, role){
       return;
     }
     const user = userSnap.val();
-
-    // Büyük harf kontrolü
-    if(role !== "admin" && (username !== username.toUpperCase() || password !== password.toUpperCase())){
-      msg.textContent="Kullanıcı adı ve şifre sadece BÜYÜK HARF olmalı!";
-      return;
-    }
-
     if(user.password !== password){
       msg.textContent="Şifre hatalı!";
       return;
     }
 
-    // Güvenlik cihaz kontrolü
-    if(role === "security"){
-      if(!user.deviceId){
-        await update(ref(db,'users/'+username), {deviceId});
-      } else if(user.deviceId !== deviceId){
-        msg.textContent="Bu cihaz hesabınıza kayıtlı değil. Lütfen yönetici ile iletişime geçin.";
-        return;
-      }
-    }
-
     sessionStorage.setItem("currentUser", JSON.stringify({username:user.username,type:user.type}));
 
-    // Hatırla checkbox
     if(role === "security"){
       if(secRemember.checked) localStorage.setItem("securityUser", JSON.stringify({username,password}));
       else localStorage.removeItem("securityUser");
+
       if(user.type === "security") window.location.href="guvenlik.html";
+      else if(user.type === "admin") window.location.href="yetkili.html";
       else msg.textContent="Yetki hatalı!";
-    } else if(role==="resident"){
+    }
+    else if(role==="resident"){
       if(resRemember.checked) localStorage.setItem("residentUser", JSON.stringify({username,password}));
       else localStorage.removeItem("residentUser");
       if(user.type==="resident") window.location.href="site.html";
@@ -239,10 +220,17 @@ async function loginUser(username, password, role){
 }
 
 // Login butonları
-document.getElementById("secLoginBtn").addEventListener("click", ()=>{ loginUser(secUsername.value, secPassword.value, "security"); });
-document.getElementById("resLoginBtn").addEventListener("click", ()=>{ loginUser(resUsername.value, resPassword.value, "resident"); });
-adminLoginBtn.addEventListener("click", ()=>{ loginUser(adminUsername.value, adminPassword.value, "admin"); });
-
+document.getElementById("secLoginBtn").addEventListener("click", ()=>{
+  loginUser(secUsername.value, secPassword.value, "security");
+});
+document.getElementById("resLoginBtn").addEventListener("click", ()=>{
+  loginUser(resUsername.value, resPassword.value, "resident");
+});
+// Admin login normal
+adminLoginBtn.addEventListener("click", ()=>{
+  loginUser(adminUsername.value, adminPassword.value, "admin");
+});
 </script>
+
 </body>
 </html>
