@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nöbet Takip Sistemi</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; font-family:'Montserrat', sans-serif; background: linear-gradient(135deg,#2c3e50,#34495e); color:#ecf0f1; display:flex; flex-direction:column; align-items:center; }
+  .container { max-width:600px; width:90%; background: rgba(0,0,0,0.7); padding:20px; border-radius:16px; margin-top:30px; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
+  h1,h2 { text-align:center; }
+  label { display:block; margin-top:12px; margin-bottom:6px; }
+  select, input[type=text] { width:100%; padding:8px; border-radius:8px; border:none; font-size:14px; margin-bottom:10px; background:#fff; color:#000; }
+  button { width:100%; padding:12px; border:none; border-radius:10px; margin-top:12px; font-weight:600; cursor:pointer; transition:0.3s; }
+  button:hover { opacity:0.9; }
+  #startBtn { background:#27ae60; color:#fff; }
+  #qrScannerModal, #successModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:16px; color:#fff; border-radius:12px; }
+  #qr-reader { width:100%; max-width:500px; }
+  #closeScanner, #thanksBtn { margin-top:20px; padding:12px 18px; border:none; border-radius:10px; background:#c0392b; color:#fff; font-weight:700; cursor:pointer; }
+  #timer { font-size:24px; text-align:center; margin-top:20px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Nöbet Takip Sistemi</h1>
+
+  <label for="shiftSelect">Vardiya</label>
+  <select id="shiftSelect">
+    <option value="Gündüz">Gündüz</option>
+    <option value="Gece">Gece</option>
+  </select>
+
+  <label for="securitySelect">Hangi güvenlikten nöbet alacaksınız?</label>
+  <select id="securitySelect"></select>
+
+  <button id="startBtn">Nöbete Başla</button>
+
+  <div id="timer">00:00:00</div>
+</div>
+
+<!-- QR Modal -->
+<div id="qrScannerModal">
+  <div id="qr-reader"></div>
+  <button id="closeScanner">Kapat</button>
+</div>
+
+<!-- Başarılı Modal -->
+<div id="successModal">
+  <h2>İyi nöbetler.</h2>
+  <button id="thanksBtn">Teşekkür ederim</button>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
+  authDomain: "guzelailemchat.firebaseapp.com",
+  databaseURL: "https://guzelailemchat-default-rtdb.firebaseio.com",
+  projectId: "guzelailemchat",
+  storageBucket: "guzelailemchat.firebasestorage.app",
+  messagingSenderId: "353492004109",
+  appId: "1:353492004109:web:3a668422a563e6951cd444"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Mevcut kullanıcı
+const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
+if(!currentUser || currentUser.type!=='security'){
+  alert("Güvenlik kullanıcı ile giriş yapmalısınız!");
+  window.location.href="login.html";
+}
+
+// DOM
+const securitySelect = document.getElementById('securitySelect');
+const shiftSelect = document.getElementById('shiftSelect');
+const startBtn = document.getElementById('startBtn');
+const timerEl = document.getElementById('timer');
+const qrModal = document.getElementById('qrScannerModal');
+const qrReaderDivId = 'qr-reader';
+const closeScanner = document.getElementById('closeScanner');
+const successModal = document.getElementById('successModal');
+const thanksBtn = document.getElementById('thanksBtn');
+
+let qrScanner=null, timerInterval=null, startTime=null;
+
+// Firebase'den security kullanıcıları çek
+const usersRef = ref(db,'users');
+onValue(usersRef, snapshot=>{
+  const val = snapshot.val();
+  securitySelect.innerHTML = '';
+  if(val){
+    Object.values(val).forEach(user=>{
+      if(user.type==='security'){
+        const opt = document.createElement('option');
+        opt.value = user.username || user.name;
+        opt.innerText = user.name || user.username;
+        securitySelect.appendChild(opt);
+      }
+    });
+  }
+});
+
+// Sayaç fonksiyonu
+function startTimer(savedTime){
+  startTime = savedTime ? new Date(savedTime) : new Date();
+  timerInterval = setInterval(()=>{
+    const now = new Date();
+    const diff = now - startTime;
+    const h = String(Math.floor(diff/3600000)).padStart(2,'0');
+    const m = String(Math.floor((diff%3600000)/60000)).padStart(2,'0');
+    const s = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
+    timerEl.innerText = `${h}:${m}:${s}`;
+  },1000);
+}
+
+function stopTimer(){
+  clearInterval(timerInterval);
+  timerEl.innerText='00:00:00';
+}
+
+// Sayfa yüklendiğinde durumu kontrol et
+const shiftActive = JSON.parse(localStorage.getItem('currentShiftActive'));
+if(shiftActive && shiftActive.user === currentUser.username){
+  startBtn.style.display='none';
+  securitySelect.style.display='none';
+  startTimer(shiftActive.startTime);
+}else{
+  startBtn.style.display='block';
+  securitySelect.style.display='block';
+}
+
+// Başlat
+startBtn.addEventListener('click', async ()=>{
+  const currentShift = shiftSelect.value;
+  const currentSecurity = securitySelect.value;
+  if(!currentSecurity){ alert("Lütfen güvenlik seçin!"); return; }
+
+  qrModal.style.display='flex';
+  if(qrScanner) qrScanner.clear();
+  qrScanner = new Html5Qrcode(qrReaderDivId);
+
+  qrScanner.start({facingMode:"environment"},{fps:10,qrbox:250},
+    qrCodeMessage=>{
+      qrScanner.stop();
+      qrModal.style.display='none';
+
+      // Firebase'e kayıt
+      const record = {
+        startBy: currentUser.username || currentUser.name,
+        fromSecurity: currentSecurity,
+        shift: currentShift,
+        startTime: new Date().toISOString(),
+        status:'started'
+      };
+      push(ref(db,'nobetRecords'), record);
+
+      localStorage.setItem('currentShiftActive', JSON.stringify({
+        user: currentUser.username,
+        startTime: new Date().toISOString(),
+        fromSecurity: currentSecurity
+      }));
+
+      startBtn.style.display='none';
+      securitySelect.style.display='none';
+      startTimer();
+
+      // Başarılı modal göster
+      successModal.style.display='flex';
+    },
+    err=>{}
+  ).catch(err=>{ alert("Kamera açılamadı: "+err); });
+});
+
+// Teşekkür butonu
+thanksBtn.addEventListener('click', ()=>{
+  successModal.style.display='none';
+  window.location.href = "guvenlik.html";
+});
+
+// QR modal kapatma
+closeScanner.addEventListener('click', ()=>{
+  if(qrScanner) qrScanner.stop();
+  qrModal.style.display='none';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CGA Güvenlik Sistemi - Site Sakini Paneli</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; font-family:'Montserrat', sans-serif; background: linear-gradient(135deg, #1f3c59, #2c5364); color:#ecf0f1; }
+.container { max-width: 1000px; margin:20px auto; padding:20px; position: relative; }
+h1,h2 { text-align:center; margin-bottom:0; }
+.panel { background: rgba(255,255,255,0.05); padding:20px; border-radius:16px; box-shadow:0 6px 20px rgba(0,0,0,0.4); margin-top:20px; position:relative; }
+.status { margin-top:10px; padding:15px; background: rgba(0,0,0,0.2); border-radius:12px; font-size:15px; line-height:1.5; }
+.devriye-list { max-height:450px; overflow-y:auto; margin-top:10px; }
+.devriye-item { display:flex; flex-direction:column; background: rgba(0,0,0,0.2); border-radius:12px; margin-bottom:12px; padding:12px; transition:0.3s; }
+.devriye-item:hover { background: rgba(0,0,0,0.35); }
+.devriye-left { flex:1; min-width:180px; margin-right:10px; }
+.devriye-status { font-weight:bold; font-size:16px; text-align:center; min-width:140px; padding:8px; border-radius:12px; margin-top:10px; }
+.devriye-status.tam { background: #2ecc71; color:#fff; }
+.devriye-status.eksik { background: #e74c3c; color:#fff; }
+.devriye-points { margin-top:8px; font-size:14px; background: rgba(255,255,255,0.05); padding:6px; border-radius:8px; }
+
+.security-item {
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  background: rgba(0,0,0,0.2);
+  padding:8px 12px;
+  border-radius:10px;
+  margin-bottom:6px;
+  font-size:15px;
+}
+.security-item:hover { background: rgba(0,0,0,0.35); }
+.security-left { display:flex; align-items:center; gap:10px; }
+.security-light { width:10px; height:10px; background:#2ecc71; border-radius:50%; flex-shrink:0; }
+.security-name { font-weight:600; }
+
+input[type=date], input[type=password], input[type=text] { padding:6px; border-radius:8px; border:none; outline:none; margin-top:5px; }
+
+#profileModal {
+  display:none;
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform: translate(-50%,-50%);
+  background: rgba(30,30,30,0.95);
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.5);
+  z-index:9999;
+  width:90%;
+  max-width:400px;
+}
+#profileModal h3 { text-align:center; margin-bottom:10px; }
+#profileModal label { display:block; margin-top:10px; font-size:14px; }
+#profileModal input { width:100%; }
+#profileModal button { margin-top:15px; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
+#updatePasswordBtn { background:#27ae60; color:#fff; }
+#updatePasswordBtn:hover { background:#2ecc71; }
+
+#profileClose { position:absolute; top:10px; right:10px; cursor:pointer; font-size:18px; color:#fff; }
+
+.top-right-actions {
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  z-index:1000;
+}
+
+/* Profil simgesi */
+#profileIcon {
+  position: relative;
+  background: #27ae60;
+  width:45px;
+  height:45px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  cursor:pointer;
+  z-index:10;
+}
+
+/* Mesaj bildirimi - PROFİLİN SOLUNDA GÖRÜNECEK */
+#messageNotificationWrapper {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-right:8px;
+}
+#messageBtn {
+  width:45px;
+  height:45px;
+  border-radius:50%;
+  background:#3498db;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  cursor:pointer;
+  position:relative;
+  box-shadow:0 4px 10px rgba(0,0,0,0.25);
+}
+#messageBadge {
+  position:absolute;
+  top:-5px;
+  right:-5px;
+  background:#2ecc71;
+  color:white;
+  font-size:12px;
+  font-weight:700;
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* Mesaj modal */
+#messageModal {
+  display:none;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background: rgba(20,20,20,0.95);
+  padding:20px;
+  border-radius:0;
+  z-index:9999;
+  overflow-y:auto;
+}
+.message-item {
+  background: rgba(255,255,255,0.1);
+  padding:10px;
+  border-radius:12px;
+  margin-bottom:10px;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  cursor:pointer;
+}
+.message-item:hover { background: rgba(255,255,255,0.2); }
+
+/* Büyük mesaj modal */
+#bigMessageModal {
+  display:none;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background: rgba(20,20,20,0.95);
+  padding:20px;
+  z-index:10000;
+  overflow-y:auto;
+}
+#bigMessageModal .modalClose {
+  position:absolute;
+  top:10px;
+  right:10px;
+  cursor:pointer;
+  font-size:20px;
+  color:#fff;
+}
+
+/* Kargo ve çıkış butonları - sağ üst */
+#cargoBtn {
+  padding: 10px 12px;
+  background:#f39c12;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+}
+#cargoBtn:hover { background:#e67e22; }
+
+#logoutBtn {
+  padding: 10px 12px;
+  background:#e74c3c;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+}
+#logoutBtn:hover { background:#c0392b; }
+
+@media (min-width:600px){
+  .devriye-item { flex-direction: row; justify-content: space-between; align-items: center; }
+  .devriye-left { margin-right:20px; }
+  .devriye-status { margin-top:0; }
+}
+
+@media (max-width:600px){
+  .security-item { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>CGA Güvenlik Sistemi</h1>
+  <h2>Site Sakini Paneli</h2>
+
+  <div id="profileModal">
+    <span id="profileClose">✖</span>
+    <h3>Profil</h3>
+    <label>Kullanıcı Adı (değiştirilemez)</label>
+    <input type="text" id="profileUsername" disabled>
+    <label>Eski Şifre</label>
+    <input type="password" id="oldPassword">
+    <label>Yeni Şifre</label>
+    <input type="password" id="newPassword">
+    <button id="updatePasswordBtn">Şifreyi Güncelle</button>
+    <div id="profileMessage" style="margin-top:10px;font-size:14px;"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Güvenlik Durumu</h3>
+    <div id="securityStatus" class="status">Yükleniyor...</div>
+  </div>
+
+  <div class="panel">
+    <h3>Devriye Geçmişi</h3>
+    <label for="filterDate">Tarih Filtrele:</label>
+    <input type="date" id="filterDate">
+    <div class="devriye-list" id="devriyeHistory"></div>
+  </div>
+
+</div>
+
+<!-- Sağ üst köşe: Mesaj bildirim PROFİLİN SOLUNDA olacak şekilde yerleştirildi -->
+<div class="top-right-actions" aria-hidden="false">
+  <div id="messageNotificationWrapper">
+    <div id="messageBtn" title="Mesajlar">✉<div id="messageBadge">0</div></div>
+  </div>
+
+  <div id="profileIcon" title="Profil">👤</div>
+
+  <button id="cargoBtn" title="Kargomu Al">Kargomu Al</button>
+  <button id="logoutBtn" title="Çıkış">Çıkış</button>
+</div>
+
+<!-- Mesaj Modal -->
+<div id="messageModal">
+  <span class="modalClose">✖</span>
+  <h3>Mesajlar</h3>
+  <div id="messageList"></div>
+</div>
+
+<!-- Büyük Mesaj Modal -->
+<div id="bigMessageModal">
+  <span class="modalClose">✖</span>
+  <div id="bigMessageContent"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getDatabase, ref, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
+  authDomain: "guzelailemchat.firebaseapp.com",
+  databaseURL: "https://guzelailemchat-default-rtdb.firebaseio.com",
+  projectId: "guzelailemchat",
+  storageBucket: "guzelailemchat.firebasestorage.app",
+  messagingSenderId: "353492004109",
+  appId: "1:353492004109:web:3a668422a563e6951cd444"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let storedUser = sessionStorage.getItem("currentUser");
+let currentUser = storedUser ? JSON.parse(storedUser).username : null;
+if(!currentUser){
+  alert("Lütfen önce giriş yapın!");
+  window.location.href="index.html";
+}
+
+const securityStatus = document.getElementById("securityStatus");
+const devriyeHistoryEl = document.getElementById("devriyeHistory");
+const filterDate = document.getElementById("filterDate");
+const profileModal = document.getElementById("profileModal");
+const profileIcon = document.getElementById("profileIcon");
+const profileClose = document.getElementById("profileClose");
+const profileUsername = document.getElementById("profileUsername");
+const oldPassword = document.getElementById("oldPassword");
+const newPassword = document.getElementById("newPassword");
+const updatePasswordBtn = document.getElementById("updatePasswordBtn");
+const profileMessage = document.getElementById("profileMessage");
+
+const messageBtn = document.getElementById("messageBtn");
+const messageBadge = document.getElementById("messageBadge");
+const messageModal = document.getElementById("messageModal");
+const messageList = document.getElementById("messageList");
+
+const bigMessageModal = document.getElementById("bigMessageModal");
+const bigMessageContent = document.getElementById("bigMessageContent");
+
+const logoutBtn = document.getElementById("logoutBtn");
+const cargoBtn = document.getElementById("cargoBtn");
+
+profileUsername.value = currentUser;
+
+profileIcon.addEventListener('click', ()=>{ profileModal.style.display='block'; });
+profileClose.addEventListener('click', ()=>{ profileModal.style.display='none'; });
+logoutBtn.addEventListener('click', ()=>{ 
+  sessionStorage.removeItem("currentUser");
+  window.location.href='index.html'; 
+});
+
+cargoBtn.addEventListener('click', ()=> window.location.href='kargom.html');
+
+updatePasswordBtn.addEventListener('click', async ()=>{ 
+  profileMessage.innerText=''; 
+  const oldPwd = oldPassword.value; 
+  const newPwd = newPassword.value; 
+  if(!oldPwd || !newPwd){ profileMessage.innerText='Lütfen eski ve yeni şifreyi giriniz.'; return; } 
+  try{
+    const snapshot = await get(ref(db,'users/' + currentUser));
+    if(!snapshot.exists()){ profileMessage.innerText='Kullanıcı bulunamadı.'; return; }
+    const userData = snapshot.val();
+    if(userData.password!==oldPwd){ profileMessage.innerText='Eski şifre hatalı.'; return; } 
+    await update(ref(db,'users/' + currentUser), {password:newPwd});
+    profileMessage.innerText='Şifre başarıyla güncellendi.';
+    oldPassword.value=''; newPassword.value='';
+  } catch(err){
+    profileMessage.innerText='Hata oluştu: ' + err.message;
+  }
+});
+
+// Aktif güvenlikler
+onValue(ref(db,'nobetDurumu'), snapshot=>{
+  const val = snapshot.val();
+  securityStatus.innerHTML = '';
+  if(val){
+    let count=0;
+    for(const key in val){
+      if(val[key].status==='started'){
+        const userName = val[key].user;
+        const userRef = ref(db,'users/' + userName);
+        onValue(userRef, userSnap=>{
+          if(!userSnap.exists()) return;
+          const userData = userSnap.val();
+          const phone = userData?.phone || '';
+          const div = document.createElement('div');
+          div.classList.add('security-item');
+          div.innerHTML = `
+            <div class="security-left">
+              <div class="security-light"></div>
+              <div class="security-name">${userName} Nöbette</div>
+            </div>
+            <button class="call-btn" onclick="window.location.href='tel:${phone}'">
+              📞Ara
+            </button>
+          `;
+          securityStatus.appendChild(div);
+        }, {onlyOnce:true});
+        count++;
+      }
+    }
+    if(count===0) securityStatus.innerText = 'Şu anda nöbette güvenlik yok.';
+  } else { securityStatus.innerText = 'Şu anda nöbette güvenlik yok.'; }
+});
+
+// Devriye geçmişi
+let allDevriyeHistory = [];
+function getTurkeyToday(){
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset()*60000);
+  const turkeyOffset = 3*60*60*1000;
+  const turkeyTime = new Date(utc + turkeyOffset);
+  const year = turkeyTime.getFullYear();
+  const month = String(turkeyTime.getMonth()+1).padStart(2,'0');
+  const day = String(turkeyTime.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
+filterDate.value = getTurkeyToday();
+
+onValue(ref(db,'devriyeHistory'), snapshot=>{
+  const val = snapshot.val();
+  allDevriyeHistory = [];
+  if(val){
+    for(const userKey in val){
+      const userRecords = val[userKey];
+      for(const recordKey in userRecords){
+        const record = userRecords[recordKey];
+        allDevriyeHistory.push({...record, userName: record.name});
+      }
+    }
+    allDevriyeHistory.sort((a,b)=>b.timestamp - a.timestamp);
+  }
+  renderDevriyeHistory();
+});
+
+function renderDevriyeHistory(){
+  const selectedDate = filterDate.value;
+  devriyeHistoryEl.innerHTML = '';
+  const filtered = allDevriyeHistory.filter(d=>{
+    const ts = d.timestamp;
+    const dateObj = new Date(ts);
+    const utc = dateObj.getTime() + (dateObj.getTimezoneOffset()*60000);
+    const turkeyOffset = 3*60*60*1000;
+    const turkeyTime = new Date(utc + turkeyOffset);
+    const year = turkeyTime.getFullYear();
+    const month = String(turkeyTime.getMonth()+1).padStart(2,'0');
+    const day = String(turkeyTime.getDate()).padStart(2,'0');
+    const devriyeDateStr = `${year}-${month}-${day}`;
+    return selectedDate ? devriyeDateStr===selectedDate : true;
+  });
+  filtered.forEach(d=>{
+    const div = document.createElement('div');
+    div.classList.add('devriye-item');
+    const left = document.createElement('div');
+    left.classList.add('devriye-left');
+    let pointsHTML='';
+    if(d.status.toLowerCase().includes('eksik')){
+      const tumNoktalar = ["Bahçe","Otopark","Arka Bahçe","Giriş Kapısı","Yan Bahçe"];
+      const isaretlenmeyen = tumNoktalar.filter(p => !(d.points || []).includes(p));
+      pointsHTML=`<div class="devriye-points"><strong>Eksik Noktalar:</strong> ${isaretlenmeyen.join(', ')}</div>`;
+    }
+    left.innerHTML=`
+      <div style="display:flex; gap:6px;"><strong>Güvenlik:</strong> ${d.userName}</div>
+      <div style="display:flex; gap:6px;"><strong>Tarih:</strong> ${d.displayDate}</div>
+      <div style="display:flex; gap:6px;"><strong>Başlangıç:</strong> ${d.start}</div>
+      <div style="display:flex; gap:6px;"><strong>Bitiş:</strong> ${d.end}</div>
+      ${pointsHTML}
+    `;
+    const status = document.createElement('div');
+    status.classList.add('devriye-status');
+    if(d.status.toLowerCase().includes('tam')) status.classList.add('tam');
+    else if(d.status.toLowerCase().includes('eksik')) status.classList.add('eksik');
+    status.innerText=d.status;
+    div.appendChild(left);
+    div.appendChild(status);
+    devriyeHistoryEl.appendChild(div);
+  });
+}
+filterDate.addEventListener('change', renderDevriyeHistory);
+
+// Mesaj Sistemi
+let messagesArray=[];
+const maxMessages=5;
+
+function firstThreeWords(text){
+  return text.split(' ').slice(0,3).join(' ');
+}
+
+function loadMessages(){
+  const userRef = ref(db,'messages/'+currentUser);
+  onValue(userRef, snapshot=>{
+    const val = snapshot.val();
+    messagesArray=[];
+    if(val){
+      const keys=Object.keys(val).sort((a,b)=>Number(a)-Number(b));
+      keys.forEach(k=>{
+        messagesArray.push({id:k,...val[k]});
+      });
+      if(messagesArray.length>maxMessages){
+        const toDelete = messagesArray.slice(0,messagesArray.length-maxMessages);
+        toDelete.forEach(m=>remove(ref(db,'messages/'+currentUser+'/'+m.id)));
+        messagesArray = messagesArray.slice(-maxMessages);
+      }
+    }
+    updateBadge();
+    renderMessages();
+  });
+}
+
+function updateBadge(){
+  messageBadge.innerText=messagesArray.length;
+}
+
+function renderMessages(){
+  messageList.innerHTML='';
+  messagesArray.forEach(m=>{
+    const div=document.createElement('div');
+    div.classList.add('message-item');
+    
+    // Küçük modülde sadece ilk 3 kelime
+    div.innerText = firstThreeWords(m.content);
+    
+    div.addEventListener('click', ()=>{
+      bigMessageContent.innerHTML = `
+        <div>${m.content}</div>
+        <button id="deleteBigMsg" style="margin-top:10px;padding:6px 10px;border-radius:8px;border:none;background:#e74c3c;color:#fff;cursor:pointer;">Sil</button>
+      `;
+      bigMessageModal.style.display='block';
+      
+      document.getElementById('deleteBigMsg').addEventListener('click',()=>{
+        remove(ref(db,'messages/'+currentUser+'/'+m.id));
+        bigMessageModal.style.display='none';
+      });
+    });
+    messageList.appendChild(div);
+  });
+}
+
+messageBtn.addEventListener('click', ()=>{ messageModal.style.display='block'; });
+messageModal.addEventListener('click', e=>{ if(e.target===messageModal || e.target.classList.contains('modalClose')) messageModal.style.display='none'; });
+bigMessageModal.addEventListener('click', e=>{ if(e.target===bigMessageModal || e.target.classList.contains('modalClose')) bigMessageModal.style.display='none'; });
+
+loadMessages();
+
+</script>
+
+</body>
+</html>

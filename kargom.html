@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kargo Bildirimi</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; font-family:'Montserrat',sans-serif; background:#1f2a38; color:#ecf0f1; display:flex; flex-direction:column; align-items:center; padding:20px; }
+h1 { margin-bottom:20px; }
+input, textarea { width:90%; max-width:400px; padding:10px; border-radius:12px; border:none; margin-bottom:10px; }
+textarea { height:80px; resize:none; }
+button { padding:10px 16px; border:none; border-radius:8px; font-weight:600; cursor:pointer; margin-bottom:10px; }
+#sendBtn { background:#27ae60; color:#fff; }
+#sendBtn:hover { background:#2ecc71; }
+#cargoStatus { width:90%; max-width:400px; margin-top:20px; max-height:400px; overflow-y:auto; }
+.message-item { background: rgba(255,255,255,0.1); padding:10px; border-radius:12px; margin-bottom:10px; display:flex; justify-content: space-between; align-items:center; cursor:pointer; }
+.message-content { flex:1; }
+.message-delete { background:#e74c3c; color:#fff; border:none; padding:4px 6px; border-radius:6px; cursor:pointer; margin-left:6px; }
+
+/* Modal */
+#infoModal {
+  display:none;
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  background: rgba(30,30,30,0.95);
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.5);
+  z-index:9999;
+  width:90%;
+  max-width:400px;
+  text-align:center;
+}
+#infoModal button { margin-top:15px; background:#27ae60; color:#fff; }
+#infoModal button:hover { background:#2ecc71; }
+#modalClose { position:absolute; top:10px; right:10px; cursor:pointer; font-size:18px; color:#fff; }
+</style>
+</head>
+<body>
+
+<h1>Kargo Mu Alabilir Misiniz?</h1>
+
+<!-- Kargo Gönder -->
+<input type="text" id="company" placeholder="Kargo Firması">
+<input type="text" id="deliveryCode" placeholder="Temassız Teslimat Kodu">
+<textarea id="note" placeholder="Güvenliğe Notunuz (opsiyonel)"></textarea>
+<button id="sendBtn">Gönder</button>
+
+<h2>Kargo Durumu</h2>
+<div id="cargoStatus"></div>
+
+<!-- Modal -->
+<div id="infoModal">
+  <span id="modalClose">✖</span>
+  <p id="modalMessage"></p>
+  <button id="modalOkBtn">Anladım</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
+  authDomain: "guzelailemchat.firebaseapp.com",
+  databaseURL: "https://guzelailemchat-default-rtdb.firebaseio.com",
+  projectId: "guzelailemchat",
+  storageBucket: "guzelailemchat.firebasestorage.app",
+  messagingSenderId: "353492004109",
+  appId: "1:353492004109:web:3a668422a563e6951cd444"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let storedUser = sessionStorage.getItem("currentUser");
+let currentUser = storedUser ? JSON.parse(storedUser).username : null;
+if(!currentUser){
+  alert("Lütfen önce giriş yapın!");
+  window.location.href="index.html";
+}
+
+const companyInput = document.getElementById('company');
+const deliveryCodeInput = document.getElementById('deliveryCode');
+const noteInput = document.getElementById('note');
+const sendBtn = document.getElementById('sendBtn');
+const cargoStatus = document.getElementById('cargoStatus');
+
+const maxCargoMessages = 5;
+
+// Modal
+const infoModal = document.getElementById('infoModal');
+const modalMessage = document.getElementById('modalMessage');
+const modalOkBtn = document.getElementById('modalOkBtn');
+const modalClose = document.getElementById('modalClose');
+
+modalClose.addEventListener('click', ()=>{ infoModal.style.display='none'; });
+modalOkBtn.addEventListener('click', ()=>{ infoModal.style.display='none'; });
+
+// Gönderme işlemi
+sendBtn.addEventListener('click', ()=>{
+  const company = companyInput.value.trim();
+  const code = deliveryCodeInput.value.trim();
+  const note = noteInput.value.trim();
+  if(!company || !code){ alert("Lütfen firma ve teslimat kodunu giriniz."); return; }
+
+  const messageRef = ref(db, 'kargoDeliveries');
+  push(messageRef, {
+    from: currentUser,
+    company: company,
+    deliveryCode: code,
+    note: note,
+    date: new Date().toISOString(),
+    status: 'Gönderildi',
+    receivedBy: ''
+  }).then(()=>{
+    // Modal göster
+    modalMessage.innerText = "5188 Sayılı Özel Güvenlik Hizmetleri Kanunda Kapsamında özel güvenlik görevlilerin Kargo alma gibi bir görevi yoktur. Eğer Projenizde Görev Yapan Güvenlik Kargonuzu Teslim Alıyorsa Kendi insiyatifini kullanıyordur. Güvenli Günler Dileriz.";
+    infoModal.style.display = 'block';
+  });
+
+  companyInput.value=''; deliveryCodeInput.value=''; noteInput.value='';
+});
+
+// Durumları listeleme ve silme
+const cargoRef = ref(db, 'kargoDeliveries');
+onValue(cargoRef, snapshot=>{
+  const val = snapshot.val();
+  cargoStatus.innerHTML='';
+  let messagesArray = [];
+  if(val){
+    const keys = Object.keys(val).sort((a,b)=>Number(a)-Number(b));
+    keys.forEach(k=>{
+      messagesArray.push({id:k, ...val[k]});
+    });
+
+    // Maksimum 5 mesaj kontrolü
+    if(messagesArray.length > maxCargoMessages){
+      const toDelete = messagesArray.slice(0, messagesArray.length-maxCargoMessages);
+      toDelete.forEach(m=>remove(ref(db,'kargoDeliveries/'+m.id)));
+      messagesArray = messagesArray.slice(-maxCargoMessages);
+    }
+
+    messagesArray.forEach(m=>{
+      const div = document.createElement('div');
+      div.classList.add('message-item');
+
+      const contentDiv = document.createElement('div');
+      contentDiv.classList.add('message-content');
+      contentDiv.innerHTML = `<strong>${m.company}</strong> - ${m.deliveryCode}<br>${m.note}<br>Status: ${m.status}${m.receivedBy ? ' (Teslim Alan: '+m.receivedBy+')':''}`;
+
+      // Tıklandığında detay modal
+      contentDiv.addEventListener('click', ()=>{
+        modalMessage.innerText = `Kargo Bilgisi:\nFirma: ${m.company}\nKodu: ${m.deliveryCode}\nNot: ${m.note}\nStatus: ${m.status}\nTeslim Alan: ${m.receivedBy || '-'}`;
+        infoModal.style.display='block';
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.classList.add('message-delete');
+      delBtn.innerText='Sil';
+      delBtn.addEventListener('click', e=>{
+        e.stopPropagation();
+        remove(ref(db,'kargoDeliveries/'+m.id));
+      });
+
+      div.appendChild(contentDiv);
+      div.appendChild(delBtn);
+      cargoStatus.appendChild(div);
+    });
+  }
+});
+</script>
+
+</body>
+</html>
