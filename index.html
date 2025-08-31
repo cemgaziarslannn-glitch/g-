@@ -15,8 +15,8 @@
   .role-buttons button.active { background: linear-gradient(90deg,#27ae60,#2ecc71); box-shadow:0 6px 20px rgba(39,174,96,0.5);}
   .input-group { display:none; flex-direction:column; text-align:left; animation:fadeIn 0.4s; }
   .input-group.active { display:flex; }
-  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px;}
-  input::placeholder { color: rgba(236,240,241,0.6); }
+  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px; text-transform: uppercase;}
+  input::placeholder { color: rgba(236,240,241,0.6); text-transform: uppercase; }
   .remember {display:flex; align-items:center; gap:8px; font-size: 14px; margin-top:8px;}
   .remember input[type="checkbox"] { margin:0; cursor:pointer; }
   .remember label { margin:0; cursor:pointer; color: #ffffff; }
@@ -40,8 +40,8 @@
   </div>
 
   <div id="securityGroup" class="input-group">
-    <input type="text" id="secUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="secPassword" placeholder="Şifre">
+    <input type="text" id="secUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="secPassword" placeholder="ŞİFRE">
     <div class="remember">
       <input type="checkbox" id="secRemember">
       <label for="secRemember">Kullanıcıyı hatırla</label>
@@ -50,8 +50,8 @@
   </div>
 
   <div id="residentGroup" class="input-group active">
-    <input type="text" id="resUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="resPassword" placeholder="Şifre">
+    <input type="text" id="resUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="resPassword" placeholder="ŞİFRE">
     <div class="remember">
       <input type="checkbox" id="resRemember">
       <label for="resRemember">Kullanıcıyı hatırla</label>
@@ -65,24 +65,16 @@
 <div class="modal" id="adminModal">
   <div class="modal-content">
     <h3>Yönetici Girişi</h3>
-    <input type="text" id="adminUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="adminPassword" placeholder="Şifre">
+    <input type="text" id="adminUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="adminPassword" placeholder="ŞİFRE">
     <button id="adminLoginBtn" class="loginBtn">Giriş Yap</button>
     <button id="closeAdminBtn" style="background:#c0392b; margin-top:10px;">Kapat</button>
   </div>
 </div>
 
-<div class="modal" id="deviceModal">
-  <div class="modal-content">
-    <h3>Cihaz Tanımsız!</h3>
-    <p>Kullanıcı hesabınızla cihazınız eşleşmiyor. Lütfen admin ile iletişime geçiniz.</p>
-    <button id="closeDeviceBtn" class="loginBtn">Kapat</button>
-  </div>
-</div>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, get, child, update, set } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, get, child, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -103,8 +95,6 @@ const residentGroup = document.getElementById("residentGroup");
 const cgaTitle = document.getElementById("cgaTitle");
 const msg = document.getElementById("message");
 const adminModal = document.getElementById("adminModal");
-const deviceModal = document.getElementById("deviceModal");
-const closeDeviceBtn = document.getElementById("closeDeviceBtn");
 
 const secUsername = document.getElementById("secUsername");
 const secPassword = document.getElementById("secPassword");
@@ -145,7 +135,6 @@ cgaTitle.addEventListener("click", ()=>{
   }
 });
 closeAdminBtn.addEventListener("click", ()=>adminModal.style.display="none");
-closeDeviceBtn.addEventListener("click", ()=>deviceModal.style.display="none");
 
 // LocalStorage hatırlama
 window.addEventListener("load", ()=>{
@@ -164,11 +153,11 @@ window.addEventListener("load", ()=>{
   }
 });
 
-// Cihaz ID (rastgele ve çakışmaz)
+// Cihaz ID alma/üretme
 function getDeviceId(){
   let id = localStorage.getItem("deviceId");
   if(!id){
-    id = 'dev-' + Math.random().toString(36).substr(2, 12);
+    id = 'dev-' + Math.random().toString(36).substr(2,12);
     localStorage.setItem("deviceId", id);
   }
   return id;
@@ -187,12 +176,13 @@ async function loginUser(username, password, role){
   }
 
   try {
-    // Admin login (büyük/küçük harf fark etmez)
+    // Admin login
     const adminSnap = await get(child(ref(db), 'admin'));
     if(adminSnap.exists()){
       const adminUser = adminSnap.val();
-      if(username.toLowerCase() === adminUser.username.toLowerCase() && password === adminUser.password){
-        sessionStorage.setItem("currentUser", JSON.stringify({username, type:"admin"}));
+      if(username.toLowerCase() === adminUser.username.toLowerCase() &&
+         password.toLowerCase() === adminUser.password.toLowerCase()){
+        sessionStorage.setItem("currentUser", JSON.stringify({username:"admin", type:"admin"}));
         window.location.href = "mod.html";
         return;
       }
@@ -206,30 +196,27 @@ async function loginUser(username, password, role){
     }
     const user = userSnap.val();
 
-    // Büyük harf zorunluluğu (site sakini ve güvenlik)
-    if(user.type!=="admin" && (username!==username.toUpperCase() || password!==password.toUpperCase())){
-      msg.textContent="Kullanıcı adı ve şifre büyük harf olmalı!";
+    // Büyük harf kontrolü
+    if(role !== "admin" && (username !== username.toUpperCase() || password !== password.toUpperCase())){
+      msg.textContent="Kullanıcı adı ve şifre sadece BÜYÜK HARF olmalı!";
       return;
     }
 
-    // Cihaz kontrolü sadece security tipi için
-    if(user.type==="security"){
-      const deviceRef = ref(db,'devices/'+username);
-      const deviceSnap = await get(deviceRef);
-      if(!deviceSnap.exists()){
-        // ilk cihaz kaydı
-        await set(deviceRef,{deviceId});
-      } else {
-        const savedId = deviceSnap.val().deviceId;
-        if(savedId !== deviceId){
-          // farklı cihazdan giriş
-          deviceModal.style.display="flex";
-          return;
-        }
+    if(user.password !== password){
+      msg.textContent="Şifre hatalı!";
+      return;
+    }
+
+    // Güvenlik cihaz kontrolü
+    if(role === "security"){
+      if(!user.deviceId){
+        await update(ref(db,'users/'+username), {deviceId});
+      } else if(user.deviceId !== deviceId){
+        msg.textContent="Bu cihaz hesabınıza kayıtlı değil. Lütfen yönetici ile iletişime geçin.";
+        return;
       }
     }
 
-    // SessionStorage
     sessionStorage.setItem("currentUser", JSON.stringify({username:user.username,type:user.type}));
 
     // Hatırla checkbox
@@ -237,7 +224,6 @@ async function loginUser(username, password, role){
       if(secRemember.checked) localStorage.setItem("securityUser", JSON.stringify({username,password}));
       else localStorage.removeItem("securityUser");
       if(user.type === "security") window.location.href="guvenlik.html";
-      else if(user.type === "admin") window.location.href="yetkili.html";
       else msg.textContent="Yetki hatalı!";
     } else if(role==="resident"){
       if(resRemember.checked) localStorage.setItem("residentUser", JSON.stringify({username,password}));
