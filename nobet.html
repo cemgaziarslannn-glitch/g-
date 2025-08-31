@@ -62,9 +62,8 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, get, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
   authDomain: "guzelailemchat.firebaseapp.com",
@@ -74,11 +73,10 @@ const firebaseConfig = {
   messagingSenderId: "353492004109",
   appId: "1:353492004109:web:3a668422a563e6951cd444"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Mevcut kullanıcı
+// Kullanıcı
 const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
 if(!currentUser || currentUser.type!=='security'){
   alert("Güvenlik kullanıcı ile giriş yapmalısınız!");
@@ -102,14 +100,13 @@ const shiftSection = document.getElementById('shiftSection');
 const deliverSection = document.getElementById('deliverSection');
 
 let qrScanner=null, timerInterval=null, startTime=null;
-let currentShiftData=null;
+let currentShiftKey=null;
 
 // Kullanıcıları getir
 const usersRef = ref(db,'users');
 onValue(usersRef, snapshot=>{
   const val = snapshot.val();
-  securitySelect.innerHTML='';
-  deliverSelect.innerHTML='';
+  securitySelect.innerHTML=''; deliverSelect.innerHTML='';
   if(val){
     Object.values(val).forEach(user=>{
       if(user.type==='security'){
@@ -127,7 +124,7 @@ onValue(usersRef, snapshot=>{
   }
 });
 
-// Sayaç fonksiyonu
+// Sayaç
 function startTimer(savedTime){
   startTime = savedTime ? new Date(savedTime) : new Date();
   timerInterval = setInterval(()=>{
@@ -139,19 +136,31 @@ function startTimer(savedTime){
     timerEl.innerText = `${h}:${m}:${s}`;
   },1000);
 }
+function stopTimer(){ clearInterval(timerInterval); timerEl.innerText='00:00:00'; }
 
-function stopTimer(){
-  clearInterval(timerInterval);
-  timerEl.innerText='00:00:00';
-}
+// Firebase realtime dinleme
+const nobetRef = ref(db,'nobetRecords');
+onValue(nobetRef, snapshot=>{
+  const val = snapshot.val();
+  if(!val) return;
 
-// Sayfa yüklendiğinde durumu kontrol et
-const savedShift = JSON.parse(localStorage.getItem('currentShiftActive'));
-if(savedShift && savedShift.user===currentUser.username){
-  shiftSection.style.display='none';
-  deliverSection.style.display='block';
-  startTimer(savedShift.startTime);
-}
+  // Son kaydı al
+  const lastKey = Object.keys(val).pop();
+  const lastShift = val[lastKey];
+
+  if(lastShift.fromSecurity===currentUser.username || lastShift.fromSecurity===currentUser.name){
+    if(lastShift.status==='started'){
+      shiftSection.style.display='none';
+      deliverSection.style.display='block';
+      startTimer(lastShift.startTime);
+    } else {
+      shiftSection.style.display='block';
+      deliverSection.style.display='none';
+      stopTimer();
+    }
+    currentShiftKey = lastKey;
+  }
+});
 
 // Başlat
 startBtn.addEventListener('click', ()=>{
@@ -178,16 +187,6 @@ startBtn.addEventListener('click', ()=>{
       };
       push(ref(db,'nobetRecords'), record);
 
-      localStorage.setItem('currentShiftActive', JSON.stringify({
-        user: currentUser.username,
-        startTime: new Date().toISOString(),
-        fromSecurity
-      }));
-
-      shiftSection.style.display='none';
-      deliverSection.style.display='block';
-      startTimer();
-
       successText.innerText="İyi nöbetler.";
       successModal.style.display='flex';
     },
@@ -209,24 +208,15 @@ deliverBtn.addEventListener('click', ()=>{
       qrScanner.stop();
       qrModal.style.display='none';
 
-      // Firebase güncelleme
-      const recordsRef = ref(db,'nobetRecords');
-      get(recordsRef).then(snapshot=>{
-        const val = snapshot.val();
-        if(val){
-          const keys = Object.keys(val);
-          const lastKey = keys[keys.length-1];
-          update(ref(db,'nobetRecords/'+lastKey), {
-            deliveredBy: currentUser.username || currentUser.name,
-            deliveredTo: deliverTo,
-            endTime: new Date().toISOString(),
-            status:'ended'
-          });
-        }
+      if(!currentShiftKey){ alert("Nöbet kaydı bulunamadı!"); return; }
+
+      update(ref(db,'nobetRecords/'+currentShiftKey), {
+        deliveredBy: currentUser.username || currentUser.name,
+        deliveredTo: deliverTo,
+        endTime: new Date().toISOString(),
+        status:'ended'
       });
 
-      stopTimer();
-      localStorage.removeItem('currentShiftActive');
       successText.innerText="İyi istirahatler.";
       successModal.style.display='flex';
     },
@@ -235,16 +225,10 @@ deliverBtn.addEventListener('click', ()=>{
 });
 
 // Teşekkür
-thanksBtn.addEventListener('click', ()=>{
-  successModal.style.display='none';
-  window.location.href="guvenlik.html";
-});
-
+thanksBtn.addEventListener('click', ()=>{ successModal.style.display='none'; window.location.href="guvenlik.html"; });
 // QR kapatma
-closeScanner.addEventListener('click', ()=>{
-  if(qrScanner) qrScanner.stop();
-  qrModal.style.display='none';
-});
+closeScanner.addEventListener('click', ()=>{ if(qrScanner) qrScanner.stop(); qrModal.style.display='none'; });
+
 </script>
 </body>
 </html>
