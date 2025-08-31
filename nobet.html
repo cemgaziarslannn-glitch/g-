@@ -7,19 +7,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
 <style>
   body { margin:0; font-family:'Montserrat', sans-serif; background: linear-gradient(135deg,#2c3e50,#34495e); color:#ecf0f1; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
-  .container { max-width:600px; width:90%; background: rgba(0,0,0,0.6); padding:20px; border-radius:16px; margin-top:30px; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
-  h1,h2 { text-align:center; margin:8px 0; }
+  .container { max-width:600px; width:90%; background: rgba(0,0,0,0.75); padding:25px; border-radius:16px; margin-top:30px; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
+  h1,h2 { text-align:center; }
   label { display:block; margin-top:12px; margin-bottom:6px; }
-  select, input[type=text] { width:100%; padding:8px; border-radius:8px; border:none; font-size:14px; margin-bottom:10px; color:#000; }
+  select, input[type=text] { width:100%; padding:10px; border-radius:8px; border:none; font-size:14px; margin-bottom:10px; background:#fff; color:#000; }
   button { width:100%; padding:12px; border:none; border-radius:10px; margin-top:12px; font-weight:600; cursor:pointer; transition:0.3s; }
   button:hover { opacity:0.9; }
   #startBtn { background:#27ae60; color:#fff; }
   #deliverBtn { background:#c0392b; color:#fff; }
-  #qrScannerModal, #infoModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:16px; color:#fff; border-radius:16px; }
-  #qr-reader { width:100%; max-width:500px; }
-  .modalContent { background: #1a1a1a; padding:20px; border-radius:16px; text-align:center; }
-  .modalContent button { margin-top:15px; background:#27ae60; color:#fff; }
   #timer { font-size:24px; text-align:center; margin-top:20px; }
+  #qrScannerModal, #successModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:16px; color:#fff; border-radius:12px; }
+  #qr-reader { width:100%; max-width:500px; }
+  #closeScanner, #thanksBtn { margin-top:20px; padding:12px 18px; border:none; border-radius:10px; background:#c0392b; color:#fff; font-weight:700; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -27,23 +26,25 @@
 <div class="container">
   <h1>Nöbet Takip Sistemi</h1>
 
-  <label for="shiftSelect">Vardiya</label>
-  <select id="shiftSelect">
-    <option value="Gündüz">Gündüz</option>
-    <option value="Gece">Gece</option>
-  </select>
+  <div id="shiftSection">
+    <label for="shiftSelect">Vardiya</label>
+    <select id="shiftSelect">
+      <option value="Gündüz">Gündüz</option>
+      <option value="Gece">Gece</option>
+    </select>
 
-  <label for="fromSecuritySelect" id="fromLabel">Hangi güvenlikten nöbet alacaksınız?</label>
-  <select id="fromSecuritySelect"></select>
+    <label for="securitySelect">Hangi güvenlikten nöbet alacaksınız?</label>
+    <select id="securitySelect"></select>
 
-  <button id="startBtn">Nöbete Başla</button>
+    <button id="startBtn">Nöbete Başla</button>
+  </div>
 
-  <div id="timer">00:00:00</div>
-
-  <label for="deliverSelect" id="deliverLabel" style="display:none;">Nöbeti teslim edeceğiniz güvenlik</label>
-  <select id="deliverSelect" style="display:none;"></select>
-
-  <button id="deliverBtn" style="display:none;">Nöbeti Teslim Et</button>
+  <div id="deliverSection" style="display:none;">
+    <div id="timer">00:00:00</div>
+    <label for="deliverSelect">Nöbeti teslim edeceğiniz güvenlik</label>
+    <select id="deliverSelect"></select>
+    <button id="deliverBtn">Nöbeti Teslim Et</button>
+  </div>
 </div>
 
 <!-- QR Modal -->
@@ -52,19 +53,18 @@
   <button id="closeScanner">Kapat</button>
 </div>
 
-<!-- Bilgilendirme Modalı -->
-<div id="infoModal">
-  <div class="modalContent">
-    <h2 id="infoText">İyi nöbetler!</h2>
-    <button id="infoBtn">Teşekkür ederim</button>
-  </div>
+<!-- Başarılı Modal -->
+<div id="successModal">
+  <h2 id="successText">İyi nöbetler.</h2>
+  <button id="thanksBtn">Teşekkür ederim</button>
 </div>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, get, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
   authDomain: "guzelailemchat.firebaseapp.com",
@@ -78,7 +78,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Kullanıcı kontrolü
+// Mevcut kullanıcı
 const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
 if(!currentUser || currentUser.type!=='security'){
   alert("Güvenlik kullanıcı ile giriş yapmalısınız!");
@@ -86,7 +86,7 @@ if(!currentUser || currentUser.type!=='security'){
 }
 
 // DOM
-const fromSelect = document.getElementById('fromSecuritySelect');
+const securitySelect = document.getElementById('securitySelect');
 const deliverSelect = document.getElementById('deliverSelect');
 const shiftSelect = document.getElementById('shiftSelect');
 const startBtn = document.getElementById('startBtn');
@@ -95,27 +95,28 @@ const timerEl = document.getElementById('timer');
 const qrModal = document.getElementById('qrScannerModal');
 const qrReaderDivId = 'qr-reader';
 const closeScanner = document.getElementById('closeScanner');
-const infoModal = document.getElementById('infoModal');
-const infoText = document.getElementById('infoText');
-const infoBtn = document.getElementById('infoBtn');
-const fromLabel = document.getElementById('fromLabel');
-const deliverLabel = document.getElementById('deliverLabel');
+const successModal = document.getElementById('successModal');
+const successText = document.getElementById('successText');
+const thanksBtn = document.getElementById('thanksBtn');
+const shiftSection = document.getElementById('shiftSection');
+const deliverSection = document.getElementById('deliverSection');
 
-let qrScanner=null, timerInterval=null, startTime=null, currentShift='', currentFromSecurity='';
+let qrScanner=null, timerInterval=null, startTime=null;
+let currentShiftData=null;
 
-// Firebase'den security kullanıcıları çek
+// Kullanıcıları getir
 const usersRef = ref(db,'users');
 onValue(usersRef, snapshot=>{
   const val = snapshot.val();
-  fromSelect.innerHTML = '';
-  deliverSelect.innerHTML = '';
+  securitySelect.innerHTML='';
+  deliverSelect.innerHTML='';
   if(val){
     Object.values(val).forEach(user=>{
       if(user.type==='security'){
-        const opt1 = document.createElement('option');
-        opt1.value = user.username || user.name;
-        opt1.innerText = user.name || user.username;
-        fromSelect.appendChild(opt1);
+        const opt = document.createElement('option');
+        opt.value = user.username || user.name;
+        opt.innerText = user.name || user.username;
+        securitySelect.appendChild(opt);
 
         const opt2 = document.createElement('option');
         opt2.value = user.username || user.name;
@@ -126,9 +127,9 @@ onValue(usersRef, snapshot=>{
   }
 });
 
-// Sayacı başlat
-function startTimer(fromTime){
-  startTime = fromTime ? new Date(fromTime) : new Date();
+// Sayaç fonksiyonu
+function startTimer(savedTime){
+  startTime = savedTime ? new Date(savedTime) : new Date();
   timerInterval = setInterval(()=>{
     const now = new Date();
     const diff = now - startTime;
@@ -144,34 +145,19 @@ function stopTimer(){
   timerEl.innerText='00:00:00';
 }
 
-// Mevcut nöbet kontrolü
-function checkOngoingShift(){
-  get(ref(db,'nobetRecords')).then(snapshot=>{
-    const val = snapshot.val();
-    if(val){
-      const keys = Object.keys(val);
-      const ongoing = keys.find(key=>{
-        const rec = val[key];
-        return rec.security === currentUser.username && rec.status==='started';
-      });
-      if(ongoing){
-        startBtn.style.display='none';
-        fromLabel.style.display='none';
-        fromSelect.style.display='none';
-        deliverBtn.style.display='block';
-        deliverLabel.style.display='block';
-        startTimer(val[ongoing].startTime);
-      }
-    }
-  });
+// Sayfa yüklendiğinde durumu kontrol et
+const savedShift = JSON.parse(localStorage.getItem('currentShiftActive'));
+if(savedShift && savedShift.user===currentUser.username){
+  shiftSection.style.display='none';
+  deliverSection.style.display='block';
+  startTimer(savedShift.startTime);
 }
-checkOngoingShift();
 
-// Nöbete başla
-startBtn.addEventListener('click', async ()=>{
-  currentShift = shiftSelect.value;
-  currentFromSecurity = fromSelect.value;
-  if(!currentFromSecurity){ alert("Lütfen hangi güvenlikten alacağınızı seçin!"); return; }
+// Başlat
+startBtn.addEventListener('click', ()=>{
+  const currentShift = shiftSelect.value;
+  const fromSecurity = securitySelect.value;
+  if(!fromSecurity){ alert("Lütfen güvenlik seçin!"); return; }
 
   qrModal.style.display='flex';
   if(qrScanner) qrScanner.clear();
@@ -182,33 +168,37 @@ startBtn.addEventListener('click', async ()=>{
       qrScanner.stop();
       qrModal.style.display='none';
 
+      // Firebase kaydı
       const record = {
-        startBy: currentUser.username,
-        fromSecurity: currentFromSecurity,
+        startBy: currentUser.username || currentUser.name,
+        fromSecurity: fromSecurity,
         shift: currentShift,
         startTime: new Date().toISOString(),
         status:'started'
       };
       push(ref(db,'nobetRecords'), record);
 
-      startTimer();
-      startBtn.style.display='none';
-      fromLabel.style.display='none';
-      fromSelect.style.display='none';
-      deliverBtn.style.display='block';
-      deliverLabel.style.display='block';
+      localStorage.setItem('currentShiftActive', JSON.stringify({
+        user: currentUser.username,
+        startTime: new Date().toISOString(),
+        fromSecurity
+      }));
 
-      infoText.innerText = "İyi nöbetler!";
-      infoModal.style.display='flex';
+      shiftSection.style.display='none';
+      deliverSection.style.display='block';
+      startTimer();
+
+      successText.innerText="İyi nöbetler.";
+      successModal.style.display='flex';
     },
     err=>{}
   ).catch(err=>{ alert("Kamera açılamadı: "+err); });
 });
 
-// Nöbeti teslim et
+// Teslim et
 deliverBtn.addEventListener('click', ()=>{
   const deliverTo = deliverSelect.value;
-  if(!deliverTo){ return alert("Teslim edilecek kişi seçin!"); }
+  if(!deliverTo){ alert("Teslim edilecek kişi seçin!"); return; }
 
   qrModal.style.display='flex';
   if(qrScanner) qrScanner.clear();
@@ -219,43 +209,38 @@ deliverBtn.addEventListener('click', ()=>{
       qrScanner.stop();
       qrModal.style.display='none';
 
-      const newRecord = {
-        deliveredBy: currentUser.username,
-        deliveredTo: deliverTo,
-        endTime: new Date().toISOString(),
-        status:'ended'
-      };
-
+      // Firebase güncelleme
       const recordsRef = ref(db,'nobetRecords');
       get(recordsRef).then(snapshot=>{
         const val = snapshot.val();
         if(val){
           const keys = Object.keys(val);
           const lastKey = keys[keys.length-1];
-          update(ref(db,'nobetRecords/'+lastKey), newRecord);
+          update(ref(db,'nobetRecords/'+lastKey), {
+            deliveredBy: currentUser.username || currentUser.name,
+            deliveredTo: deliverTo,
+            endTime: new Date().toISOString(),
+            status:'ended'
+          });
         }
       });
 
       stopTimer();
-      deliverBtn.style.display='none';
-      deliverLabel.style.display='none';
-      startBtn.style.display='block';
-      fromLabel.style.display='block';
-      fromSelect.style.display='block';
-
-      infoText.innerText = "İyi istirahatler!";
-      infoModal.style.display='flex';
+      localStorage.removeItem('currentShiftActive');
+      successText.innerText="İyi istirahatler.";
+      successModal.style.display='flex';
     },
     err=>{}
   ).catch(err=>{ alert("Kamera açılamadı: "+err); });
 });
 
-// Modal kapatma ve yönlendirme
-infoBtn.addEventListener('click', ()=>{
-  infoModal.style.display='none';
-  window.location.href="yetkili.html"; // güvenlik sayfasına geri yönlendir
+// Teşekkür
+thanksBtn.addEventListener('click', ()=>{
+  successModal.style.display='none';
+  window.location.href="guvenlik.html";
 });
 
+// QR kapatma
 closeScanner.addEventListener('click', ()=>{
   if(qrScanner) qrScanner.stop();
   qrModal.style.display='none';
