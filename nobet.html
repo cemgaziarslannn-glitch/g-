@@ -38,9 +38,7 @@ button:hover { opacity:0.9; }
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   z-index: 10000;
 }
-#backBtn:hover {
-  background: #3498db;
-}
+#backBtn:hover { background: #3498db; }
 </style>
 </head>
 <body>
@@ -87,7 +85,7 @@ button:hover { opacity:0.9; }
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, update, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -120,7 +118,6 @@ const qrReaderDivId = 'qr-reader';
 const closeScanner = document.getElementById('closeScanner');
 const successModal = document.getElementById('successModal');
 const successText = document.getElementById('successText');
-const thanksBtn = document.getElementById('thanksBtn');
 const shiftSection = document.getElementById('shiftSection');
 const deliverSection = document.getElementById('deliverSection');
 
@@ -162,7 +159,7 @@ function startTimer(savedTime){
 }
 function stopTimer(){ clearInterval(timerInterval); timerEl.innerText='00:00:00'; }
 
-// Firebase realtime dinleme - kendi başlattığın nöbeti kontrol et
+// Kendi başlattığın nöbeti kontrol et
 const nobetRef = ref(db,'nobetRecords');
 onValue(nobetRef, snapshot=>{
   const val = snapshot.val();
@@ -174,7 +171,6 @@ onValue(nobetRef, snapshot=>{
     return;
   }
 
-  // Kendi başlattığın ve hâlâ aktif nöbeti bul
   const myActiveShiftEntry = Object.entries(val).find(([key, shift]) => 
       shift.status === 'started' && shift.startBy === currentUser.username
   );
@@ -193,6 +189,12 @@ onValue(nobetRef, snapshot=>{
   }
 });
 
+// QR okuma ve validasyon
+async function validateQR(qrId){
+  const qrSnap = await get(ref(db,'qrNoktas/'+qrId));
+  return qrSnap.exists() ? qrSnap.val() : null;
+}
+
 // Başlat
 startBtn.addEventListener('click', ()=>{
   const currentShift = shiftSelect.value;
@@ -204,13 +206,20 @@ startBtn.addEventListener('click', ()=>{
   qrScanner = new Html5Qrcode(qrReaderDivId);
 
   qrScanner.start({facingMode:"environment"},{fps:10,qrbox:250},
-    qrCodeMessage=>{
+    async qrCodeMessage=>{
       qrScanner.stop();
       qrModal.style.display='none';
+
+      const qrData = await validateQR(qrCodeMessage);
+      if(!qrData){
+        alert("Geçersiz QR kod! Nöbet başlatılamadı.");
+        return;
+      }
 
       const record = {
         startBy: currentUser.username || currentUser.name,
         fromSecurity: fromSecurity,
+        startPoint: qrData.name || qrCodeMessage,
         shift: currentShift,
         startTime: new Date().toISOString(),
         status:'started'
@@ -236,14 +245,20 @@ deliverBtn.addEventListener('click', ()=>{
   qrScanner = new Html5Qrcode(qrReaderDivId);
 
   qrScanner.start({facingMode:"environment"},{fps:10,qrbox:250},
-    qrCodeMessage=>{
+    async qrCodeMessage=>{
       qrScanner.stop();
       qrModal.style.display='none';
+
+      const qrData = await validateQR(qrCodeMessage);
+      if(!qrData){
+        alert("Geçersiz QR kod! Nöbet teslim edilemedi.");
+        return;
+      }
 
       update(ref(db,'nobetRecords/'+currentShiftKey), {
         deliveredBy: currentUser.username,
         deliveredTo: deliverTo,
-        fromSecurity: deliverTo,
+        endPoint: qrData.name || qrCodeMessage,
         endTime: new Date().toISOString(),
         status:'ended'
       });
@@ -261,9 +276,7 @@ thanksBtn.addEventListener('click', ()=>{ successModal.style.display='none'; win
 closeScanner.addEventListener('click', ()=>{ if(qrScanner) qrScanner.stop(); qrModal.style.display='none'; });
 
 // Geri Butonu
-document.getElementById("backBtn").addEventListener("click", ()=>{
-  window.location.href = "guvenlik.html";
-});
+document.getElementById("backBtn").addEventListener("click", ()=>{ window.location.href = "guvenlik.html"; });
 </script>
 </body>
 </html>
