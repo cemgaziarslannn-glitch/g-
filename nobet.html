@@ -6,19 +6,19 @@
 <title>Nöbet Takip Sistemi</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  body { margin:0; font-family:'Montserrat', sans-serif; background: linear-gradient(135deg,#2c3e50,#34495e); color:#ecf0f1; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
-  .container { max-width:600px; width:90%; background: rgba(0,0,0,0.75); padding:25px; border-radius:16px; margin-top:30px; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
-  h1,h2 { text-align:center; }
-  label { display:block; margin-top:12px; margin-bottom:6px; }
-  select, input[type=text] { width:100%; padding:10px; border-radius:8px; border:none; font-size:14px; margin-bottom:10px; background:#fff; color:#000; }
-  button { width:100%; padding:12px; border:none; border-radius:10px; margin-top:12px; font-weight:600; cursor:pointer; transition:0.3s; }
-  button:hover { opacity:0.9; }
-  #startBtn { background:#27ae60; color:#fff; }
-  #deliverBtn { background:#c0392b; color:#fff; }
-  #timer { font-size:24px; text-align:center; margin-top:20px; }
-  #qrScannerModal, #successModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:16px; color:#fff; border-radius:12px; }
-  #qr-reader { width:100%; max-width:500px; }
-  #closeScanner, #thanksBtn { margin-top:20px; padding:12px 18px; border:none; border-radius:10px; background:#c0392b; color:#fff; font-weight:700; cursor:pointer; }
+body { margin:0; font-family:'Montserrat', sans-serif; background: linear-gradient(135deg,#2c3e50,#34495e); color:#ecf0f1; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+.container { max-width:600px; width:90%; background: rgba(0,0,0,0.75); padding:25px; border-radius:16px; margin-top:30px; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
+h1,h2 { text-align:center; }
+label { display:block; margin-top:12px; margin-bottom:6px; }
+select, input[type=text] { width:100%; padding:10px; border-radius:8px; border:none; font-size:14px; margin-bottom:10px; background:#fff; color:#000; }
+button { width:100%; padding:12px; border:none; border-radius:10px; margin-top:12px; font-weight:600; cursor:pointer; transition:0.3s; }
+button:hover { opacity:0.9; }
+#startBtn { background:#27ae60; color:#fff; }
+#deliverBtn { background:#c0392b; color:#fff; }
+#timer { font-size:24px; text-align:center; margin-top:20px; }
+#qrScannerModal, #successModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:16px; color:#fff; border-radius:12px; }
+#qr-reader { width:100%; max-width:500px; }
+#closeScanner, #thanksBtn { margin-top:20px; padding:12px 18px; border:none; border-radius:10px; background:#c0392b; color:#fff; font-weight:700; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -62,7 +62,7 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, get, update, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -128,8 +128,7 @@ onValue(usersRef, snapshot=>{
 function startTimer(savedTime){
   startTime = savedTime ? new Date(savedTime) : new Date();
   timerInterval = setInterval(()=>{
-    const now = new Date();
-    const diff = now - startTime;
+    const diff = new Date() - startTime;
     const h = String(Math.floor(diff/3600000)).padStart(2,'0');
     const m = String(Math.floor((diff%3600000)/60000)).padStart(2,'0');
     const s = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
@@ -138,27 +137,34 @@ function startTimer(savedTime){
 }
 function stopTimer(){ clearInterval(timerInterval); timerEl.innerText='00:00:00'; }
 
-// Firebase realtime dinleme
+// Firebase realtime dinleme - kendi başlattığın nöbeti kontrol et
 const nobetRef = ref(db,'nobetRecords');
 onValue(nobetRef, snapshot=>{
   const val = snapshot.val();
-  if(!val) return;
+  if(!val) {
+    shiftSection.style.display='block';
+    deliverSection.style.display='none';
+    stopTimer();
+    currentShiftKey = null;
+    return;
+  }
 
-  // Son kaydı al
-  const lastKey = Object.keys(val).pop();
-  const lastShift = val[lastKey];
+  // Kendi başlattığın ve hâlâ aktif nöbeti bul
+  const myActiveShiftEntry = Object.entries(val).find(([key, shift]) => 
+      shift.status === 'started' && shift.startBy === currentUser.username
+  );
 
-  if(lastShift.fromSecurity===currentUser.username || lastShift.fromSecurity===currentUser.name){
-    if(lastShift.status==='started'){
-      shiftSection.style.display='none';
-      deliverSection.style.display='block';
-      startTimer(lastShift.startTime);
-    } else {
-      shiftSection.style.display='block';
-      deliverSection.style.display='none';
+  if(myActiveShiftEntry){
+      const [key, shift] = myActiveShiftEntry;
+      currentShiftKey = key;
+      shiftSection.style.display = 'none';
+      deliverSection.style.display = 'block';
+      startTimer(shift.startTime);
+  } else {
+      currentShiftKey = null;
+      shiftSection.style.display = 'block';
+      deliverSection.style.display = 'none';
       stopTimer();
-    }
-    currentShiftKey = lastKey;
   }
 });
 
@@ -177,10 +183,9 @@ startBtn.addEventListener('click', ()=>{
       qrScanner.stop();
       qrModal.style.display='none';
 
-      // Firebase kaydı
       const record = {
         startBy: currentUser.username || currentUser.name,
-        fromSecurity: fromSecurity,
+        fromSecurity: fromSecurity,      // teslim alacak kişi
         shift: currentShift,
         startTime: new Date().toISOString(),
         status:'started'
@@ -196,6 +201,8 @@ startBtn.addEventListener('click', ()=>{
 
 // Teslim et
 deliverBtn.addEventListener('click', ()=>{
+  if(!currentShiftKey){ alert("Aktif nöbet kaydı bulunamadı!"); return; }
+
   const deliverTo = deliverSelect.value;
   if(!deliverTo){ alert("Teslim edilecek kişi seçin!"); return; }
 
@@ -208,19 +215,18 @@ deliverBtn.addEventListener('click', ()=>{
       qrScanner.stop();
       qrModal.style.display='none';
 
-      if(!currentShiftKey){ alert("Nöbet kaydı bulunamadı!"); return; }
-
       update(ref(db,'nobetRecords/'+currentShiftKey), {
-        deliveredBy: currentUser.username || currentUser.name,
+        deliveredBy: currentUser.username,
         deliveredTo: deliverTo,
+        fromSecurity: deliverTo,    // teslim edilen kişi artık nöbeti alacak kişi
         endTime: new Date().toISOString(),
         status:'ended'
       });
 
-      successText.innerText="İyi istirahatler.";
+      successText.innerText="Nöbet başarıyla teslim edildi.";
       successModal.style.display='flex';
-    },
-    err=>{}
+  },
+  err=>{}
   ).catch(err=>{ alert("Kamera açılamadı: "+err); });
 });
 
