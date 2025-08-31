@@ -15,8 +15,8 @@
   .role-buttons button.active { background: linear-gradient(90deg,#27ae60,#2ecc71); box-shadow:0 6px 20px rgba(39,174,96,0.5);}
   .input-group { display:none; flex-direction:column; text-align:left; animation:fadeIn 0.4s; }
   .input-group.active { display:flex; }
-  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px;}
-  input::placeholder { color: rgba(236,240,241,0.6); }
+  input[type="text"], input[type="password"] {width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; background: rgba(255,255,255,0.1); color:white; font-size: 14px; text-transform: uppercase;}
+  input::placeholder { color: rgba(236,240,241,0.6); text-transform: uppercase; }
   .remember {display:flex; align-items:center; gap:8px; font-size: 14px; margin-top:8px;}
   .remember input[type="checkbox"] { margin:0; cursor:pointer; }
   .remember label { margin:0; cursor:pointer; color: #ffffff; }
@@ -40,8 +40,8 @@
   </div>
 
   <div id="securityGroup" class="input-group">
-    <input type="text" id="secUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="secPassword" placeholder="Şifre">
+    <input type="text" id="secUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="secPassword" placeholder="ŞİFRE">
     <div class="remember">
       <input type="checkbox" id="secRemember">
       <label for="secRemember">Kullanıcıyı hatırla</label>
@@ -50,8 +50,8 @@
   </div>
 
   <div id="residentGroup" class="input-group active">
-    <input type="text" id="resUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="resPassword" placeholder="Şifre">
+    <input type="text" id="resUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="resPassword" placeholder="ŞİFRE">
     <div class="remember">
       <input type="checkbox" id="resRemember">
       <label for="resRemember">Kullanıcıyı hatırla</label>
@@ -65,8 +65,8 @@
 <div class="modal" id="adminModal">
   <div class="modal-content">
     <h3>Yönetici Girişi</h3>
-    <input type="text" id="adminUsername" placeholder="Kullanıcı Adı">
-    <input type="password" id="adminPassword" placeholder="Şifre">
+    <input type="text" id="adminUsername" placeholder="KULLANICI ADI">
+    <input type="password" id="adminPassword" placeholder="ŞİFRE">
     <button id="adminLoginBtn" class="loginBtn">Giriş Yap</button>
     <button id="closeAdminBtn" style="background:#c0392b; margin-top:10px;">Kapat</button>
   </div>
@@ -74,7 +74,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, get, child, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -153,6 +153,11 @@ window.addEventListener("load", ()=>{
   }
 });
 
+// Cihaz ID üretimi
+function generateDeviceId(){
+  return 'dev-' + Math.random().toString(36).substring(2,12);
+}
+
 // Login fonksiyonu
 async function loginUser(username, password, role){
   username = username.trim();
@@ -165,12 +170,13 @@ async function loginUser(username, password, role){
   }
 
   try {
-    // Admin login modal (hiç değiştirilmedi)
+    // Admin login modal (büyük/küçük harf fark etmez)
     const adminSnap = await get(child(ref(db), 'admin'));
     if(adminSnap.exists()){
       const adminUser = adminSnap.val();
-      if(username === adminUser.username && password === adminUser.password){
-        sessionStorage.setItem("currentUser", JSON.stringify({username, type:"admin"}));
+      if(username.toLowerCase() === adminUser.username.toLowerCase() &&
+         password.toLowerCase() === adminUser.password.toLowerCase()){
+        sessionStorage.setItem("currentUser", JSON.stringify({username:"admin", type:"admin"}));
         window.location.href = "mod.html";
         return;
       }
@@ -183,9 +189,29 @@ async function loginUser(username, password, role){
       return;
     }
     const user = userSnap.val();
+
+    // Büyük harf kontrolü (security & resident)
+    if(role !== "admin" && (username !== username.toUpperCase() || password !== password.toUpperCase())){
+      msg.textContent="Kullanıcı adı ve şifre sadece BÜYÜK HARF olmalı!";
+      return;
+    }
+
     if(user.password !== password){
       msg.textContent="Şifre hatalı!";
       return;
+    }
+
+    // Güvenlik cihaz kontrolü
+    if(role === "security"){
+      const currentDevice = generateDeviceId(); // burayı gerçek cihaz id ile değiştirilebilir
+      if(user.deviceId && user.deviceId !== currentDevice){
+        msg.textContent="Cihazınız sisteme tanımlı değildir. Yönetici ile iletişime geçin.";
+        return;
+      }
+      // İlk girişte cihaz kaydı
+      if(!user.deviceId){
+        await update(ref(db,'users/'+username), {deviceId: currentDevice});
+      }
     }
 
     sessionStorage.setItem("currentUser", JSON.stringify({username:user.username,type:user.type}));
@@ -194,13 +220,9 @@ async function loginUser(username, password, role){
     if(role === "security"){
       if(secRemember.checked) localStorage.setItem("securityUser", JSON.stringify({username,password}));
       else localStorage.removeItem("securityUser");
-
-      // İşte burada değişiklik: admin tipi güvenlik sekmesinden giriş yaparsa yetkili.html
       if(user.type === "security") window.location.href="guvenlik.html";
-      else if(user.type === "admin") window.location.href="yetkili.html";
       else msg.textContent="Yetki hatalı!";
-    }
-    else if(role==="resident"){
+    } else if(role==="resident"){
       if(resRemember.checked) localStorage.setItem("residentUser", JSON.stringify({username,password}));
       else localStorage.removeItem("residentUser");
       if(user.type==="resident") window.location.href="site.html";
@@ -217,6 +239,7 @@ async function loginUser(username, password, role){
 document.getElementById("secLoginBtn").addEventListener("click", ()=>{ loginUser(secUsername.value, secPassword.value, "security"); });
 document.getElementById("resLoginBtn").addEventListener("click", ()=>{ loginUser(resUsername.value, resPassword.value, "resident"); });
 adminLoginBtn.addEventListener("click", ()=>{ loginUser(adminUsername.value, adminPassword.value, "admin"); });
+
 </script>
 
 </body>
