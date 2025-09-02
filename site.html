@@ -354,17 +354,17 @@ onValue(ref(db,'nobetRecords'), snapshot => {
 
         const div = document.createElement('div');
         div.classList.add('security-item');
-        div.innerHTML = `
-          <div class="security-left">
-            <span style="color:#2ecc71; font-weight:bold;">[●]</span>
-            <span class="security-name">${userName} Nöbette</span>
-            | ${shift}
-            | ${record.startPoint}
-          </div>
-          <button class="call-btn" onclick="window.location.href='tel:${phone}'">
-            📞Ara
-          </button>
-        `;
+      div.innerHTML = `
+  <div class="security-left">
+    <span style="color:#2ecc71; font-weight:bold;">[●]</span>
+    <span class="security-name">${userName} Nöbette</span>
+    | ${record.startPoint}
+  </div>
+  <button class="call-btn" onclick="window.location.href='tel:${phone}'">
+    📞Ara
+  </button>
+`;
+
         securityStatus.appendChild(div);
       });
       count++;
