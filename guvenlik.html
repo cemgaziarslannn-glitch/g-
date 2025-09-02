@@ -121,6 +121,8 @@
   <button id="nobetAlBtn">Nöbeti Teslim Al</button>
   <button id="nobetBitirBtn" disabled>Nöbeti Teslim Ettim</button>
   <div class="status" id="nobetStatus">Henüz nöbette değilsiniz.</div>
+  <div id="nobetTimer" style="margin-top:8px; font-weight:bold;"></div>
+
 
   <!-- Devriye -->
   <div class="panel">
@@ -256,26 +258,76 @@ let qrScanner = null;
 
 let devriyeStarted=false, devriyeStartTime=null, readPoints=[], allDevriyeHistory=[];
 
-/* === Nöbet durumu === */
-const nobetRef = ref(db,'nobetDurumu/'+(currentUser.username || currentUser.name));
-onValue(nobetRef, snapshot=>{
+/* === Nöbet durumu (nobetRecords bazlı) === */
+const nobetRecordsRef = ref(db,'nobetRecords');
+onValue(nobetRecordsRef, snapshot=>{
   const val = snapshot.val();
+  let activeRecord = null;
+
   if(val){
-    if(val.status === 'started'){
-      nobetStatus.innerText = `${val.user} şu anda nöbette.`;
-      nobetAlBtn.disabled = true; nobetBitirBtn.disabled = false;
-    } else {
-      nobetStatus.innerText = 'Henüz nöbette değilsiniz.';
-      nobetAlBtn.disabled = false; nobetBitirBtn.disabled = true;
-    }
-  } else {
-    nobetStatus.innerText = 'Henüz nöbette değilsiniz.';
-    nobetAlBtn.disabled = false; nobetBitirBtn.disabled = true;
+    Object.values(val).forEach(rec=>{
+      if(rec.startBy === (currentUser.name || currentUser.username) && rec.status==='started'){
+        activeRecord = rec;
+      }
+    });
   }
+
+  let nobetTimerInterval = null;
+
+if(activeRecord){
+  nobetStatus.innerText = `👮 ${activeRecord.startBy} | 🧭 ${activeRecord.startPoint} - Nöbettesin`;
+  nobetAlBtn.disabled = true;
+  nobetBitirBtn.disabled = false;
+
+  // Sayaç
+  const startTime = new Date(activeRecord.startTime);
+  clearInterval(nobetTimerInterval);
+  nobetTimerInterval = setInterval(()=>{
+    const now = new Date();
+    const diff = Math.floor((now - startTime)/1000); // saniye
+    const h = String(Math.floor(diff/3600)).padStart(2,'0');
+    const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+    const s = String(diff%60).padStart(2,'0');
+    document.getElementById("nobetTimer").innerText = `⏱️ Süre: ${h}:${m}:${s}`;
+  },1000);
+
+} else {
+  nobetStatus.innerText = 'Henüz nöbette değilsiniz.';
+  document.getElementById("nobetTimer").innerText = '';
+  nobetAlBtn.disabled = false;
+  nobetBitirBtn.disabled = true;
+  clearInterval(nobetTimerInterval);
+}
+
 });
 
-nobetAlBtn.addEventListener('click', ()=>{ set(nobetRef, { user: currentUser.name || currentUser.username, status:'started' }); });
-nobetBitirBtn.addEventListener('click', ()=>{ set(nobetRef, { user: currentUser.name || currentUser.username, status:'ended' }); });
+/* === Nöbet al/bitir butonları === */
+nobetAlBtn.addEventListener('click', ()=>{ 
+  const newRecord = {
+    fromSecurity: currentUser.username || currentUser.name,
+    startBy: currentUser.name || currentUser.username,
+    startPoint: 'D BLOK', // opsiyonel, isteğe göre
+    startTime: new Date().toISOString(),
+    status: 'started'
+  };
+  push(nobetRecordsRef, newRecord);
+});
+
+nobetBitirBtn.addEventListener('click', ()=>{
+  // aktif nöbeti bul ve status'u değiştir
+  const valSnapshot = get(nobetRecordsRef);
+  valSnapshot.then(snapshot=>{
+    const val = snapshot.val();
+    if(val){
+      Object.entries(val).forEach(([key, rec])=>{
+        if(rec.startBy === (currentUser.name || currentUser.username) && rec.status==='started'){
+          update(ref(db,'nobetRecords/'+key), {status:'ended', endTime:new Date().toISOString()});
+        }
+      });
+    }
+  });
+});
+
 
 /* === Devriye akışı === */
 devriyeStartBtn.addEventListener('click', ()=>{
