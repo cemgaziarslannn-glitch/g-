@@ -70,7 +70,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
   z-index:1000;
 }
 
-/* Profil simgesi */
 #profileIcon {
   position: relative;
   background: #27ae60;
@@ -85,7 +84,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
   z-index:10;
 }
 
-/* Mesaj bildirimi - PROFİLİN SOLUNDA GÖRÜNECEK */
 #messageNotificationWrapper {
   display:flex;
   align-items:center;
@@ -121,7 +119,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
   justify-content:center;
 }
 
-/* Mesaj modal */
 #messageModal {
   display:none;
   position:fixed;
@@ -147,7 +144,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
 }
 .message-item:hover { background: rgba(255,255,255,0.2); }
 
-/* Büyük mesaj modal */
 #bigMessageModal {
   display:none;
   position:fixed;
@@ -169,7 +165,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
   color:#fff;
 }
 
-/* Kargo ve çıkış butonları - sağ üst */
 #cargoBtn {
   padding: 10px 12px;
   background:#f39c12;
@@ -238,7 +233,6 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
 
 </div>
 
-<!-- Sağ üst köşe: Mesaj bildirim PROFİLİN SOLUNDA olacak şekilde yerleştirildi -->
 <div class="top-right-actions" aria-hidden="false">
   <div id="messageNotificationWrapper">
     <div id="messageBtn" title="Mesajlar">✉<div id="messageBadge">0</div></div>
@@ -250,14 +244,12 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
   <button id="logoutBtn" title="Çıkış">Çıkış</button>
 </div>
 
-<!-- Mesaj Modal -->
 <div id="messageModal">
   <span class="modalClose">✖</span>
   <h3>Mesajlar</h3>
   <div id="messageList"></div>
 </div>
 
-<!-- Büyük Mesaj Modal -->
 <div id="bigMessageModal">
   <span class="modalClose">✖</span>
   <div id="bigMessageContent"></div>
@@ -265,7 +257,7 @@ input[type=date], input[type=password], input[type=text] { padding:6px; border-r
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getDatabase, ref, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getDatabase, ref, onValue, update, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX0PUaisTG-TvIOCCtKzSiI3e7yhLu3ik",
@@ -286,6 +278,7 @@ if(!currentUser){
   window.location.href="index.html";
 }
 
+// HTML elementleri
 const securityStatus = document.getElementById("securityStatus");
 const devriyeHistoryEl = document.getElementById("devriyeHistory");
 const filterDate = document.getElementById("filterDate");
@@ -309,15 +302,14 @@ const bigMessageContent = document.getElementById("bigMessageContent");
 const logoutBtn = document.getElementById("logoutBtn");
 const cargoBtn = document.getElementById("cargoBtn");
 
+// Profil ayarları
 profileUsername.value = currentUser;
-
 profileIcon.addEventListener('click', ()=>{ profileModal.style.display='block'; });
 profileClose.addEventListener('click', ()=>{ profileModal.style.display='none'; });
 logoutBtn.addEventListener('click', ()=>{ 
   sessionStorage.removeItem("currentUser");
   window.location.href='index.html'; 
 });
-
 cargoBtn.addEventListener('click', ()=> window.location.href='kargom.html');
 
 updatePasswordBtn.addEventListener('click', async ()=>{ 
@@ -338,52 +330,57 @@ updatePasswordBtn.addEventListener('click', async ()=>{
   }
 });
 
-// Aktif güvenlikler
-onValue(ref(db,'nobetDurumu'), snapshot=>{
+// === AKTİF NÖBETLER ===
+onValue(ref(db,'nobetRecords'), snapshot => {
   const val = snapshot.val();
   securityStatus.innerHTML = '';
-  if(val){
-    let count=0;
-    for(const key in val){
-      if(val[key].status==='started'){
-        const userName = val[key].user;
-        const userRef = ref(db,'users/' + userName);
-        onValue(userRef, userSnap=>{
-          if(!userSnap.exists()) return;
-          const userData = userSnap.val();
-          const phone = userData?.phone || '';
-          const div = document.createElement('div');
-          div.classList.add('security-item');
-          div.innerHTML = `
-            <div class="security-left">
-              <div class="security-light"></div>
-              <div class="security-name">${userName} Nöbette</div>
-            </div>
-            <button class="call-btn" onclick="window.location.href='tel:${phone}'">
-              📞Ara
-            </button>
-          `;
-          securityStatus.appendChild(div);
-        }, {onlyOnce:true});
-        count++;
-      }
+
+  if(!val){
+    securityStatus.innerText = 'Şu anda nöbette güvenlik yok.';
+    return;
+  }
+
+  let count = 0;
+  for(const key in val){
+    const record = val[key];
+    if(record.status === 'started'){
+      const userName = record.startBy;
+      const shift = record.shift;
+      const startTime = new Date(record.startTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+      get(ref(db,'users/' + userName)).then(userSnap=>{
+        if(!userSnap.exists()) return;
+        const phone = userSnap.val()?.phone || '';
+
+        const div = document.createElement('div');
+        div.classList.add('security-item');
+        div.innerHTML = `
+          <div class="security-left">
+            <span style="color:#2ecc71; font-weight:bold;">[●]</span>
+            <span class="security-name">${userName} Nöbette</span>
+            | ${shift} Vardiyası
+            | ${record.startPoint}
+          </div>
+          <button class="call-btn" onclick="window.location.href='tel:${phone}'">
+            📞Ara
+          </button>
+        `;
+        securityStatus.appendChild(div);
+      });
+      count++;
     }
-    if(count===0) securityStatus.innerText = 'Şu anda nöbette güvenlik yok.';
-  } else { securityStatus.innerText = 'Şu anda nöbette güvenlik yok.'; }
+  }
+  if(count===0) securityStatus.innerText = 'Şu anda nöbette güvenlik yok.';
 });
 
-// Devriye geçmişi
+// === DEVRIYE GEÇMİŞİ ===
 let allDevriyeHistory = [];
-function getTurkeyToday(){
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset()*60000);
-  const turkeyOffset = 3*60*60*1000;
-  const turkeyTime = new Date(utc + turkeyOffset);
-  const year = turkeyTime.getFullYear();
-  const month = String(turkeyTime.getMonth()+1).padStart(2,'0');
-  const day = String(turkeyTime.getDate()).padStart(2,'0');
-  return `${year}-${month}-${day}`;
-}
+let tumNoktalar = [];
+onValue(ref(db,'qrCodes'), snapshot=>{ 
+  const val = snapshot.val(); tumNoktalar = [];
+  if(val) for(const key in val){ const qr = val[key]; if(qr.name) tumNoktalar.push(qr.name); }
+});
+
 filterDate.value = getTurkeyToday();
 
 onValue(ref(db,'devriyeHistory'), snapshot=>{
@@ -417,101 +414,99 @@ function renderDevriyeHistory(){
     const devriyeDateStr = `${year}-${month}-${day}`;
     return selectedDate ? devriyeDateStr===selectedDate : true;
   });
+
   filtered.forEach(d=>{
     const div = document.createElement('div');
     div.classList.add('devriye-item');
+
     const left = document.createElement('div');
     left.classList.add('devriye-left');
-    let pointsHTML='';
+
+    let pointsHTML = '';
     if(d.status.toLowerCase().includes('eksik')){
-      const tumNoktalar = ["Bahçe","Otopark","Arka Bahçe","Giriş Kapısı","Yan Bahçe"];
-      const isaretlenmeyen = tumNoktalar.filter(p => !(d.points || []).includes(p));
-      pointsHTML=`<div class="devriye-points"><strong>Eksik Noktalar:</strong> ${isaretlenmeyen.join(', ')}</div>`;
+      const kaydedilenNoktalar = d.points || [];
+      const isaretlenmeyen = tumNoktalar.filter(p => !kaydedilenNoktalar.includes(p));
+      pointsHTML = `<div class="devriye-points"><strong>Eksik Noktalar:</strong> ${isaretlenmeyen.join(', ')}</div>`;
     }
-    left.innerHTML=`
+
+    left.innerHTML = `
       <div style="display:flex; gap:6px;"><strong>Güvenlik:</strong> ${d.userName}</div>
       <div style="display:flex; gap:6px;"><strong>Tarih:</strong> ${d.displayDate}</div>
       <div style="display:flex; gap:6px;"><strong>Başlangıç:</strong> ${d.start}</div>
       <div style="display:flex; gap:6px;"><strong>Bitiş:</strong> ${d.end}</div>
       ${pointsHTML}
     `;
-    const status = document.createElement('div');
-    status.classList.add('devriye-status');
-    if(d.status.toLowerCase().includes('tam')) status.classList.add('tam');
-    else if(d.status.toLowerCase().includes('eksik')) status.classList.add('eksik');
-    status.innerText=d.status;
+
+    const statusDiv = document.createElement('div');
+    statusDiv.classList.add('devriye-status');
+    statusDiv.classList.add(d.status.toLowerCase().includes('tam') ? 'tam' : 'eksik');
+    statusDiv.innerText = d.status;
+
     div.appendChild(left);
-    div.appendChild(status);
+    div.appendChild(statusDiv);
     devriyeHistoryEl.appendChild(div);
   });
 }
+
 filterDate.addEventListener('change', renderDevriyeHistory);
 
-// Mesaj Sistemi
-let messagesArray=[];
-const maxMessages=5;
-
-function firstThreeWords(text){
-  return text.split(' ').slice(0,3).join(' ');
+function getTurkeyToday(){
+  const date = new Date();
+  const utc = date.getTime() + (date.getTimezoneOffset()*60000);
+  const turkeyOffset = 3*60*60*1000;
+  const turkeyDate = new Date(utc + turkeyOffset);
+  const y = turkeyDate.getFullYear();
+  const m = String(turkeyDate.getMonth()+1).padStart(2,'0');
+  const d = String(turkeyDate.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
 }
 
-function loadMessages(){
-  const userRef = ref(db,'messages/'+currentUser);
-  onValue(userRef, snapshot=>{
+// === MESAJLAR ===
+const messagesRef = ref(db,'messages/' + currentUser); // sadece giriş yapılan daire
+onValue(messagesRef, snapshot=>{
     const val = snapshot.val();
-    messagesArray=[];
+    messageList.innerHTML = '';
+    let count = 0;
+
     if(val){
-      const keys=Object.keys(val).sort((a,b)=>Number(a)-Number(b));
-      keys.forEach(k=>{
-        messagesArray.push({id:k,...val[k]});
-      });
-      if(messagesArray.length>maxMessages){
-        const toDelete = messagesArray.slice(0,messagesArray.length-maxMessages);
-        toDelete.forEach(m=>remove(ref(db,'messages/'+currentUser+'/'+m.id)));
-        messagesArray = messagesArray.slice(-maxMessages);
-      }
+        const sortedKeys = Object.keys(val).sort((a,b)=>a-b);
+        for(const key of sortedKeys){
+            const msg = val[key];
+            count++;
+
+            const dateObj = new Date(msg.date);
+            const dateStr = dateObj.toLocaleString('tr-TR', { 
+                day:'2-digit', month:'2-digit', year:'numeric', 
+                hour:'2-digit', minute:'2-digit', second:'2-digit' 
+            });
+
+            const div = document.createElement('div');
+            div.classList.add('message-item');
+            div.innerHTML = `
+              <div>
+                <strong>${msg.subject}</strong> - ${msg.from}<br>
+                <small>${dateStr}</small>
+              </div>
+            `;
+
+            div.addEventListener('click', ()=>{
+                bigMessageContent.innerHTML = `
+                  <h3>${msg.subject} - ${msg.from}</h3>
+                  <p>${msg.content}</p>
+                `;
+                bigMessageModal.style.display='block';
+            });
+
+            messageList.appendChild(div);
+        }
     }
-    updateBadge();
-    renderMessages();
-  });
-}
-
-function updateBadge(){
-  messageBadge.innerText=messagesArray.length;
-}
-
-function renderMessages(){
-  messageList.innerHTML='';
-  messagesArray.forEach(m=>{
-    const div=document.createElement('div');
-    div.classList.add('message-item');
-    
-    // Küçük modülde sadece ilk 3 kelime
-    div.innerText = firstThreeWords(m.content);
-    
-    div.addEventListener('click', ()=>{
-      bigMessageContent.innerHTML = `
-        <div>${m.content}</div>
-        <button id="deleteBigMsg" style="margin-top:10px;padding:6px 10px;border-radius:8px;border:none;background:#e74c3c;color:#fff;cursor:pointer;">Sil</button>
-      `;
-      bigMessageModal.style.display='block';
-      
-      document.getElementById('deleteBigMsg').addEventListener('click',()=>{
-        remove(ref(db,'messages/'+currentUser+'/'+m.id));
-        bigMessageModal.style.display='none';
-      });
-    });
-    messageList.appendChild(div);
-  });
-}
+    messageBadge.innerText = count;
+});
 
 messageBtn.addEventListener('click', ()=>{ messageModal.style.display='block'; });
-messageModal.addEventListener('click', e=>{ if(e.target===messageModal || e.target.classList.contains('modalClose')) messageModal.style.display='none'; });
-bigMessageModal.addEventListener('click', e=>{ if(e.target===bigMessageModal || e.target.classList.contains('modalClose')) bigMessageModal.style.display='none'; });
-
-loadMessages();
+messageModal.querySelector('.modalClose').addEventListener('click', ()=>{ messageModal.style.display='none'; });
+bigMessageModal.querySelector('.modalClose').addEventListener('click', ()=>{ bigMessageModal.style.display='none'; });
 
 </script>
-
 </body>
 </html>
