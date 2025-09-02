@@ -345,6 +345,7 @@ onValue(ref(db,'nobetRecords'), snapshot => {
     const record = val[key];
     if(record.status === 'started'){
       const userName = record.startBy;
+      const shift = record.shift;
       const startTime = new Date(record.startTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
       get(ref(db,'users/' + userName)).then(userSnap=>{
@@ -357,7 +358,8 @@ onValue(ref(db,'nobetRecords'), snapshot => {
           <div class="security-left">
             <span style="color:#2ecc71; font-weight:bold;">[●]</span>
             <span class="security-name">${userName} Nöbette</span>
-			|${record.startPoint}
+            | ${shift}
+            | ${record.startPoint}
           </div>
           <button class="call-btn" onclick="window.location.href='tel:${phone}'">
             📞Ara
