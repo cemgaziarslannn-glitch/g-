@@ -409,49 +409,37 @@ historyToggleBtn.addEventListener('click', ()=>{
 /* === QR SCANNER === */
 function hasCameraLib(){ return typeof Html5Qrcode !== 'undefined'; }
 
-// Aktif startPoint'e göre QR noktalarını yükle
-async function loadQrListForStartPoint(startPoint){
-    let val = null;
+async function startScanner(pointName, btnEl){
+  if(!devriyeStarted){ alert("Önce devriyeyi başlatın!"); return; }
+  if(!hasCameraLib()){ alert("QR kütüphanesi yüklenemedi!"); return; }
+  qrModal.style.display='flex';
 
-    if(startPoint){ 
-        // Önce blok bazlı qrcodes dene (örn: "D BLOKqrcodes")
-        const blockQrRef = ref(db, `${startPoint}qrcodes`);
-        const snapshot = await get(blockQrRef);
-        val = snapshot.val();
-    }
+  if(qrScanner) qrScanner.clear();
+  qrScanner = new Html5Qrcode(qrReaderDivId);
 
-    // Eğer blok için veri bulunmazsa fallback qrcodes kullan
-    if(!val){
-        const fallbackRef = ref(db, 'qrCodes');
-        const fallbackSnap = await get(fallbackRef);
-        val = fallbackSnap.val();
-    }
-
-    qrListContainer.innerHTML=''; // Öncekileri temizle
-
-    if(val){
-        Object.values(val).forEach(point=>{
-            const div = document.createElement('div');
-            const btn = document.createElement('button');
-            btn.classList.add('qrBtn');
-            btn.dataset.qrid = point.qrId;
-            btn.dataset.point = point.name;
-            btn.innerText = "QR Okut";
-
-            const span = document.createElement('span');
-            span.innerText = point.name;
-
-            div.appendChild(btn);
-            div.appendChild(span);
-            qrListContainer.appendChild(div);
-
-            btn.addEventListener('click', ()=>{
-                startScanner(point.name, btn);
-            });
-        });
-    }
+  qrScanner.start(
+    { facingMode:"environment" },
+    { fps:10, qrbox:250 },
+    qrCodeMessage => {
+      const qrId = qrCodeMessage.trim();
+      if(qrId === btnEl.dataset.qrid){
+        btnEl.classList.add('read');
+        btnEl.nextElementSibling.innerText='Tamamlandı';
+        if(!readPoints.includes(pointName)) readPoints.push(pointName);
+        qrScanner.stop();
+        qrModal.style.display='none';
+      } else {
+        alert("QR kod eşleşmedi!");
+      }
+    },
+    err=>{ /* console.log(err) */ }
+  ).catch(err=>{ alert("Kamera açılamadı: "+err); });
 }
 
+closeScanner.addEventListener('click', ()=>{
+  if(qrScanner) qrScanner.stop();
+  qrModal.style.display='none';
+});
 
 /* === Firebase'den QR noktalarını dinle === */
 const qrCodesRef = ref(db,'qrCodes');
