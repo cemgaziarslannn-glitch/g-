@@ -197,12 +197,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+
 /* === Session kontrol === */
 const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
 if(!currentUser || currentUser.type!=='security'){
   alert("Güvenlik kullanıcı ile giriş yapmalısınız!");
   window.location.href="login.html";
 }
+ const activeDevriyeRef = ref(db,'activeDevriye/'+(currentUser.username || currentUser.name));
 const olayBtn = document.getElementById('olayBtn');
 olayBtn.addEventListener('click', () => {
     window.location.href = 'olay.html';
@@ -314,6 +316,46 @@ const closeScanner = document.getElementById('closeScanner');
 let qrScanner = null;
 
 let devriyeStarted=false, devriyeStartTime=null, readPoints=[], allDevriyeHistory=[];
+onValue(activeDevriyeRef, snapshot => {
+    const val = snapshot.val();
+    if(val){
+        // Aktif devriye varsa
+        devriyeStarted = true;
+        devriyeStartTime = new Date(val.startTime);
+        readPoints = val.readPoints || [];
+        devriyeEndBtn.disabled = false;
+
+        startDevriyeTimer();   // Devriye süresini gösteren fonksiyon
+        updateQRButtons();     // QR butonlarını işaretleyen fonksiyon
+    }
+});
+
+function updateQRButtons(){
+  document.querySelectorAll('.qrBtn').forEach(btn=>{
+    if(readPoints.includes(btn.dataset.point)){
+      btn.classList.add('read');
+      btn.nextElementSibling.innerText='Tamamlandı';
+    } else {
+      btn.classList.remove('read');
+      btn.nextElementSibling.innerText=btn.dataset.point;
+    }
+  });
+}
+let devriyeTimerInterval = null;
+
+function startDevriyeTimer(){
+  if(devriyeTimerInterval) clearInterval(devriyeTimerInterval);
+  devriyeTimerInterval = setInterval(()=>{
+    if(!devriyeStarted) return;
+    const now = new Date();
+    const diff = Math.floor((now - devriyeStartTime)/1000);
+    const h = String(Math.floor(diff/3600)).padStart(2,'0');
+    const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+    const s = String(diff%60).padStart(2,'0');
+    devriyeStatus.innerText = `🟢 Devriye Başladı | ⏱️${h}:${m}:${s}`;
+  },1000);
+}
+
 
 /* === Nöbet durumu (nobetRecords bazlı) === */
 const nobetRecordsRef = ref(db,'nobetRecords');
@@ -420,6 +462,11 @@ devriyeStartBtn.addEventListener('click', async () => {
     devriyeStartTime = new Date();
     devriyeEndBtn.disabled = false;
     readPoints = [];
+	// 🔹 Firebase'e kaydet
+await set(activeDevriyeRef, {
+    startTime: devriyeStartTime.toISOString(),
+    readPoints: readPoints
+});
 
     // Devriye başlangıç saati + sayaç
     function updateDevriyeStatus(){
@@ -449,7 +496,7 @@ devriyeStartBtn.addEventListener('click', async () => {
 
 
 
-devriyeEndBtn.addEventListener('click', ()=>{
+devriyeEndBtn.addEventListener('click', async ()=>{
   if(!devriyeStarted) return;
   const devriyeEndTime=new Date();
   let statusText = readPoints.length===document.querySelectorAll('.qrBtn').length ? "Tam devriye":"Eksik devriye";
@@ -469,6 +516,7 @@ devriyeEndBtn.addEventListener('click', ()=>{
   };
 
   push(ref(db,'devriyeHistory/'+(currentUser.username || currentUser.name)), devriyeRecord);
+    await set(activeDevriyeRef, null);
   devriyeStarted=false;
   devriyeEndBtn.disabled=true;
   devriyeStatus.innerText='Devriye tamamlandı.';
