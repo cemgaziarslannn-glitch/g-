@@ -149,11 +149,32 @@
   <div id="qr-reader"></div>
   <button id="closeScanner">Kapat</button>
 </div>
+<!-- Devriye uyarı modalı -->
+<div id="warningModal" style="
+    display:none;
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    background:#e74c3c;
+    color:#fff;
+    padding:20px 30px;
+    border-radius:12px;
+    font-size:16px;
+    font-weight:600;
+    box-shadow:0 6px 20px rgba(0,0,0,0.5);
+    z-index:9999;
+    text-align:center;
+">
+  Devriyeye başlamadan önce nöbeti almalısınız!
+</div>
+
 
 <!-- Html5Qrcode (kameralı QR okuma) -->
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <script type="module">
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, update, get } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
@@ -354,7 +375,47 @@ nobetBitirBtn.addEventListener('click', ()=>{
 });
 
 
-/* === Devriye akışı === */
+/* === Devriye Başlatma Kontrolü: Nöbet olmadan başlatılamaz === */
+// Modal fonksiyonu: script içinde herhangi bir yere ekle
+function showWarningModal(message, duration=3000){
+    const modal = document.getElementById('warningModal');
+    modal.innerText = message;
+    modal.style.display = 'block';
+    setTimeout(()=>{ modal.style.display = 'none'; }, duration);
+}
+
+// Devriye başlatma listener'ı (alert yerine modal)
+devriyeStartBtn.addEventListener('click', async () => {
+    const valSnapshot = await get(nobetRecordsRef);
+    const val = valSnapshot.val();
+    let activeNobet = null;
+
+    if(val){
+        Object.values(val).forEach(rec => {
+            if(rec.startBy === (currentUser.name || currentUser.username) && rec.status === 'started'){
+                activeNobet = rec;
+            }
+        });
+    }
+
+    if(!activeNobet){
+        showWarningModal("Devriyeye başlamadan önce nöbeti almalısınız!");
+        return; // Devriye başlatılmaz
+    }
+
+    if(devriyeStarted) return;
+
+    devriyeStarted = true;
+    devriyeStartTime = new Date();
+    devriyeStatus.innerText = 'Devriye başladı: ' + devriyeStartTime.toLocaleTimeString();
+    devriyeEndBtn.disabled = false;
+    readPoints = [];
+    document.querySelectorAll('.qrBtn').forEach(btn => {
+        btn.classList.remove('read');
+        btn.nextElementSibling.innerText = btn.dataset.point;
+    });
+});
+
 
 
 devriyeEndBtn.addEventListener('click', ()=>{
@@ -485,6 +546,7 @@ onValue(qrCodesRef, snapshot=>{
     });
   }
 });
+
 </script>
 </body>
 </html>
