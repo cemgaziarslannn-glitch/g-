@@ -126,7 +126,7 @@
 
   <!-- Nöbet -->
   <button id="nobetAlBtn">Nöbeti Teslim Al</button>
-  <button id="nobetBitirBtn" disabled>Nöbeti Teslim Ettim</button>
+  <button id="nobetBitirBtn" disabled>Nöbeti Teslim Et</button>
   <div class="status" id="nobetStatus">Henüz nöbette değilsiniz.</div>
   <div id="nobetTimer" style="margin-top:8px; font-weight:bold;"></div>
 
@@ -308,28 +308,29 @@ nobetBitirBtn.addEventListener('click', (e)=>{
 });
 
 
-
-/* === QR Modal === */
 const qrModal = document.getElementById('qrScannerModal');
 const qrReaderDivId = 'qr-reader';
 const closeScanner = document.getElementById('closeScanner');
 let qrScanner = null;
 
-let devriyeStarted=false, devriyeStartTime=null, readPoints=[], allDevriyeHistory=[];
+let devriyeStarted = false;
+let devriyeStartTime = null;
+let readPoints = [];
+let allDevriyeHistory = [];
+
+// 2️⃣ Devriye durumunu dinleme
 onValue(activeDevriyeRef, snapshot => {
     const val = snapshot.val();
     if(val){
-        // Aktif devriye varsa
         devriyeStarted = true;
         devriyeStartTime = new Date(val.startTime);
         readPoints = val.readPoints || [];
         devriyeEndBtn.disabled = false;
 
-        startDevriyeTimer();   // Devriye süresini gösteren fonksiyon
-        updateQRButtons();     // QR butonlarını işaretleyen fonksiyon
+        startDevriyeTimer();
+        updateQRButtons(); // Bu sayede sayfa yenilenince QR kodlar yeşil olur
     }
 });
-
 function updateQRButtons(){
   document.querySelectorAll('.qrBtn').forEach(btn=>{
     if(readPoints.includes(btn.dataset.point)){
@@ -341,6 +342,8 @@ function updateQRButtons(){
     }
   });
 }
+
+
 let devriyeTimerInterval = null;
 
 function startDevriyeTimer(){
