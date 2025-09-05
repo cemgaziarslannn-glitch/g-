@@ -411,21 +411,41 @@ devriyeStartBtn.addEventListener('click', async () => {
 
     if(!activeNobet){
         showWarningModal("Devriyeye Başlamak İçin Önce Nöbeti Teslim Al");
-        return; // Devriye başlatılmaz
+        return; 
     }
 
     if(devriyeStarted) return;
 
     devriyeStarted = true;
     devriyeStartTime = new Date();
-    devriyeStatus.innerText = 'Devriye başladı: ' + devriyeStartTime.toLocaleTimeString();
     devriyeEndBtn.disabled = false;
     readPoints = [];
+
+    // Devriye başlangıç saati + sayaç
+    function updateDevriyeStatus(){
+        const now = new Date();
+        const diff = Math.floor((now - devriyeStartTime)/1000);
+        const h = String(Math.floor(diff/3600)).padStart(2,'0');
+        const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+        const s = String(diff%60).padStart(2,'0');
+        devriyeStatus.innerText = `🟢 Devriye Başladı | ⏰${devriyeStartTime.toLocaleTimeString()} |⏱️${h}:${m}:${s}`;
+    }
+
+    updateDevriyeStatus();
+    const devriyeTimerInterval = setInterval(() => {
+        if(!devriyeStarted){
+            clearInterval(devriyeTimerInterval);
+            return;
+        }
+        updateDevriyeStatus();
+    }, 1000);
+
     document.querySelectorAll('.qrBtn').forEach(btn => {
         btn.classList.remove('read');
         btn.nextElementSibling.innerText = btn.dataset.point;
     });
 });
+
 
 
 
