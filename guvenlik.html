@@ -428,7 +428,7 @@ devriyeStartBtn.addEventListener('click', async () => {
         const h = String(Math.floor(diff/3600)).padStart(2,'0');
         const m = String(Math.floor((diff%3600)/60)).padStart(2,'0');
         const s = String(diff%60).padStart(2,'0');
-        devriyeStatus.innerText = `🟢 Devriye Başladı | ⏰${devriyeStartTime.toLocaleTimeString()} |⏱️${h}:${m}:${s}`;
+        devriyeStatus.innerText = `🟢 Devriye Başladı | ⏱️${h}:${m}:${s}`;
     }
 
     updateDevriyeStatus();
