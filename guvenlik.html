@@ -137,6 +137,22 @@
     <button id="devriyeStartBtn">Devriye Başlat</button>
     <button id="devriyeEndBtn" disabled>Devriyeyi Bitir</button>
 	 <button id="olayBtn" style="background:#f39c12; color:#fff;">Olay Bildir</button> 
+	  <button id="kargoBtn" style="background:#e67e22; color:#fff; padding:12px 18px; border:none; border-radius:10px; margin-top:10px; font-weight:600; position:relative;">
+    Kargo Bildirimi
+    <span id="kargoBadge" style="
+        position:absolute;
+        top:-6px;
+        right:-6px;
+        background:#c0392b;
+        color:#fff;
+        font-size:12px;
+        font-weight:700;
+        padding:2px 6px;
+        border-radius:50%;
+    ">0</span>
+</button>
+
+
     <div class="status" id="devriyeStatus">Devriye başlamadı.</div>
 
     <h3>Devriye Noktaları</h3>
@@ -196,6 +212,28 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const kargoBadge = document.getElementById('kargoBadge');
+const kargoRef = ref(db, 'kargoDeliveries');
+
+onValue(kargoRef, snapshot => {
+    const val = snapshot.val();
+    let pendingCount = 0;
+
+    if(val){
+        // Her daireyi ve altındaki kargoları dolaş
+        Object.values(val).forEach(apartment => {
+            Object.values(apartment).forEach(delivery => {
+                if(delivery.status === "Gönderildi"){
+                    pendingCount++;
+                }
+                // "Teslim Alındı" olanlar sayılmaz, otomatik rozetten düşer
+            });
+        });
+    }
+
+    kargoBadge.innerText = pendingCount;
+});
+
 
 
 /* === Session kontrol === */
@@ -205,10 +243,43 @@ if(!currentUser || currentUser.type!=='security'){
   window.location.href="login.html";
 }
  const activeDevriyeRef = ref(db,'activeDevriye/'+(currentUser.username || currentUser.name));
-const olayBtn = document.getElementById('olayBtn');
-olayBtn.addEventListener('click', () => {
+// === Olay Bildir / Kargo Bildir için nöbet kontrolü ===
+async function checkActiveNobet(){
+    const snapshot = await get(nobetRecordsRef);
+    const val = snapshot.val();
+    if(val){
+        for(const rec of Object.values(val)){
+            if(rec.startBy === (currentUser.name || currentUser.username) && rec.status === 'started'){
+                return true; // Nöbet var
+            }
+        }
+    }
+    return false; // Nöbet yok
+}
+
+// Olay Bildir butonu
+olayBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const hasNobet = await checkActiveNobet();
+    if(!hasNobet){
+        showWarningModal("Olay Bildirmek için önce nöbeti almalısınız!");
+        return;
+    }
     window.location.href = 'olay.html';
 });
+
+// Kargo Bildir butonu
+kargoBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const hasNobet = await checkActiveNobet();
+    if(!hasNobet){
+        showWarningModal("Kargo Bildirimlerini Görüntülemek için Önce nöbeti almalısınız!");
+        return;
+    }
+    window.location.href = 'kargog.html';
+});
+
+
 
 
 /* === Profil modal ve işlemleri === */
@@ -601,35 +672,57 @@ closeScanner.addEventListener('click', ()=>{
   qrModal.style.display='none';
 });
 
-/* === Firebase'den QR noktalarını dinle === */
-const qrCodesRef = ref(db,'qrCodes');
-onValue(qrCodesRef, snapshot=>{
-  const val = snapshot.val();
-  qrListContainer.innerHTML='';
-  if(val){
-    Object.values(val).forEach(point=>{
-      const div = document.createElement('div');
-      const btn = document.createElement('button');
-      btn.classList.add('qrBtn');
-      btn.dataset.qrid = point.qrId;
-      btn.dataset.point = point.name;
-      btn.innerText = "QR Okut";
+/* === Firebase'den dinamik QR noktalarını çek === */
+async function loadQRPoints() {
+    // 1️⃣ Nöbetin başlama noktasını al
+    const nobetSnapshot = await get(nobetRecordsRef);
+    let startPoint = null;
+    if(nobetSnapshot.exists()){
+        const records = nobetSnapshot.val();
+        for(const rec of Object.values(records)){
+            if(rec.startBy === (currentUser.name || currentUser.username) && rec.status==='started'){
+                startPoint = rec.startPoint;
+                break;
+            }
+        }
+    }
 
-      const span = document.createElement('span');
-      span.innerText = point.name;
+    // 2️⃣ Firebase'de startPoint + 'qrcodes' var mı kontrol et
+    let pointsRef = startPoint ? ref(db, startPoint + 'qrcodes') : null;
+    let snapshot = pointsRef ? await get(pointsRef) : null;
+    let pointsData = snapshot && snapshot.exists() ? snapshot.val() : null;
 
-      div.appendChild(btn);
-      div.appendChild(span);
-      qrListContainer.appendChild(div);
+    // 3️⃣ Eğer yoksa genel qrCodes kullan
+    if(!pointsData){
+        pointsRef = ref(db,'qrCodes');
+        snapshot = await get(pointsRef);
+        pointsData = snapshot.exists() ? snapshot.val() : {};
+    }
 
-      btn.addEventListener('click', ()=>{
-        startScanner(point.name, btn);
-      });
+    // 4️⃣ Listeyi ekrana bas
+    qrListContainer.innerHTML = '';
+    Object.values(pointsData).forEach(point=>{
+        const div = document.createElement('div');
+        const btn = document.createElement('button');
+        btn.classList.add('qrBtn');
+        btn.dataset.qrid = point.qrId;
+        btn.dataset.point = point.name;
+        btn.innerText = "QR Okut";
+
+        const span = document.createElement('span');
+        span.innerText = point.name;
+
+        div.appendChild(btn);
+        div.appendChild(span);
+        qrListContainer.appendChild(div);
+
+        btn.addEventListener('click', ()=>{ startScanner(point.name, btn); });
     });
-  }
-});
+}
+
+// Sayfa yüklendiğinde çağır
+loadQRPoints();
 
 </script>
 </body>
 </html>
-
